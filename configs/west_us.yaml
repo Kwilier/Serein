@@ -1,0 +1,47 @@
+# Study configuration for the main Serein backtest.
+# Change this file only BEFORE the final test run (see docs/BACKTEST_PROTOCOL.md).
+
+name: west_us
+
+# Bounding box: CA, OR, WA, NV, ID (west), western AZ.
+region:
+  lon_min: -125.0
+  lon_max: -114.0
+  lat_min: 32.0
+  lat_max: 49.0
+
+# Fire season months used for every year (inclusive).
+season_months: [6, 7, 8, 9, 10]
+
+split:
+  train: [2021, 2022]
+  calibrate: [2023]   # used for early stopping + conformal calibration
+  test: [2024, 2025]  # touched ONCE, at the end
+
+# When the forecast is made each day (UTC) and what data is allowed then.
+# Lags were measured from AWS S3 LastModified times on 2026-11-01:
+#   HRRR 12z f48 posted ~13:55Z; AQM 06z and 12z both posted ~18:03Z.
+issue_hour_utc: 18.5
+availability:
+  hrrr_cycle: 12          # use the 12z HRRR run of the issue day
+  aqm_cycle: 12           # use the 12z AQM run of the issue day
+  obs_lag_hours: 1.5      # sensor hours ending <= 17Z are usable
+  hms_lag_days: 1         # yesterday's HMS analysis (today's is incomplete)
+  firms_window_hours: 24  # detections in the 24 h before issue time
+
+leads: [0, 1, 2, 3]       # local days after issue day (0 = today)
+
+hrrr:
+  max_fhr: 48
+  smoke_every: 1          # hours between MASSDEN fields
+  met_every: 3            # hours between weather fields
+  met_vars: ["UGRD:10 m above ground", "VGRD:10 m above ground", "HPBL:surface",
+             "TMP:2 m above ground", "RH:2 m above ground",
+             "COLMD:entire atmosphere (considered as a single layer)"]
+
+graph:
+  k_neighbors: 10
+  max_km: 300
+
+# Background grid of "virtual sensors" for neighborhood maps (degrees).
+grid_step_deg: 0.25

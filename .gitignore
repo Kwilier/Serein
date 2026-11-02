@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Data + outputs: never commit
+/data/
+/outputs/
+*.parquet
+*.grib2
+*.nc
+*.npz
+*.pt
+
+# Secrets
+.env
+
+# Real participant data must never enter git
+**/participants/
+**/real_logs/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
