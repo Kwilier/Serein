@@ -1,0 +1,128 @@
+# Serein backtest (dev) - 2026-11-01 16:14
+code version: 1e9d8d6
+rows: train 130050, val 32300, conf 32300, test 32725; leads [0, 1, 2, 3]
+graph: 425 nodes, 4250 edges
+features: 62
+
+## training smokecast (seed 0)
+  epoch   0 train 0.1180 val 0.0939 *
+  epoch   1 train 0.1001 val 0.0908 *
+  epoch   3 train 0.0946 val 0.0870 *
+  epoch   4 train 0.0917 val 0.0854 *
+  epoch   7 train 0.0891 val 0.0850 *
+  epoch  10 train 0.0866 val 0.0848 *
+  epoch  11 train 0.0869 val 0.0829 *
+  epoch  13 train 0.0849 val 0.0827 *
+  epoch  14 train 0.0850 val 0.0824 *
+  epoch  20 train 0.0839 val 0.0828
+  epoch  23 train 0.0841 val 0.0821 *
+  epoch  30 train 0.0810 val 0.0827
+  epoch  40 train 0.0777 val 0.0857
+  epoch  50 train 0.0766 val 0.0875
+  early stop at epoch 53; best val 0.0821
+
+## training smokecast (seed 1)
+  epoch   0 train 0.1195 val 0.0955 *
+  epoch   1 train 0.1025 val 0.0884 *
+  epoch   2 train 0.0965 val 0.0874 *
+  epoch   3 train 0.0936 val 0.0868 *
+  epoch   4 train 0.0928 val 0.0853 *
+  epoch   7 train 0.0887 val 0.0841 *
+  epoch   8 train 0.0879 val 0.0840 *
+  epoch   9 train 0.0870 val 0.0838 *
+  epoch  10 train 0.0868 val 0.0836 *
+  epoch  11 train 0.0861 val 0.0833 *
+  epoch  13 train 0.0850 val 0.0829 *
+  epoch  14 train 0.0845 val 0.0828 *
+  epoch  16 train 0.0850 val 0.0823 *
+  epoch  20 train 0.0836 val 0.0823
+  epoch  25 train 0.0819 val 0.0817 *
+  epoch  30 train 0.0798 val 0.0835
+  epoch  40 train 0.0797 val 0.0842
+  epoch  50 train 0.0762 val 0.0846
+  early stop at epoch 55; best val 0.0817
+
+## training smokecast (seed 2)
+  epoch   0 train 0.1184 val 0.0942 *
+  epoch   1 train 0.1013 val 0.0887 *
+  epoch   3 train 0.0939 val 0.0866 *
+  epoch   4 train 0.0918 val 0.0852 *
+  epoch   5 train 0.0899 val 0.0847 *
+  epoch   8 train 0.0877 val 0.0844 *
+  epoch   9 train 0.0877 val 0.0841 *
+  epoch  10 train 0.0873 val 0.0844
+  epoch  14 train 0.0854 val 0.0836 *
+  epoch  15 train 0.0859 val 0.0830 *
+  epoch  18 train 0.0850 val 0.0826 *
+  epoch  20 train 0.0826 val 0.0824 *
+  epoch  30 train 0.0795 val 0.0850
+  epoch  40 train 0.0780 val 0.0837
+  epoch  50 train 0.0754 val 0.0866
+  early stop at epoch 50; best val 0.0824
+warning cut-offs P(>=35.5) tuned on calibration: {0: 0.4500000000000001, 1: 0.22500000000000003, 2: 0.22500000000000003, 3: 0.22500000000000003}
+
+## Results: all site-days
+RMSE (µg/m³, lower is better)
+lead             0      1      2      3
+model                                  
+aqm_bc       10.14  11.02  12.35    NaN
+climatology  13.44  13.76  13.81  13.71
+hrrr_smoke   12.63   9.05    NaN    NaN
+noaa_best    10.14  11.02  12.35  15.48
+persistence  10.15  13.79  14.97  15.48
+smokecast     4.33   8.01  10.34  11.93
+
+RMSE on smoke-affected days (HMS plume overhead yesterday)
+lead             0      1      2      3
+model                                  
+aqm_bc       14.77  15.87  17.50    NaN
+climatology  19.95  20.12  19.77  19.70
+hrrr_smoke   18.75  12.73    NaN    NaN
+noaa_best    14.77  15.87  17.50  22.55
+persistence  15.03  20.29  21.66  22.55
+smokecast     6.27  11.41  14.70  17.22
+
+USG+ critical success index (higher is better)
+lead                    0      1      2      3
+model                                         
+aqm_bc              0.369  0.285  0.142    NaN
+climatology         0.000  0.000  0.000  0.000
+hrrr_smoke          0.509  0.468    NaN    NaN
+noaa_best           0.369  0.285  0.142  0.151
+persistence         0.376  0.257  0.179  0.151
+smokecast           0.671  0.480  0.361  0.179
+smokecast_warnrule  0.671  0.514  0.422  0.298
+
+90% interval coverage (target 0.90)
+lead           0      1    2      3
+model                              
+smokecast  0.903  0.892  0.9  0.916
+
+Head-to-head (same rows; skill = 1 - RMSE_smokecast/RMSE_baseline; CI = 95% day-bootstrap of RMSE diff)
+ lead          vs     n  rmse_smokecast  rmse_baseline  skill   ci_lo  ci_hi
+    0   noaa_best 25030           4.327         10.138  0.573  -8.380 -3.242
+    0      aqm_bc 25030           4.327         10.138  0.573  -8.380 -3.242
+    0  hrrr_smoke 25030           4.327         12.630  0.657 -13.096 -4.022
+    0 persistence 24732           4.346         10.149  0.572  -8.677 -2.642
+    1   noaa_best 25041           8.013         11.022  0.273  -4.548 -1.564
+    1      aqm_bc 25041           8.013         11.022  0.273  -4.548 -1.564
+    1  hrrr_smoke 25041           8.013          9.053  0.115  -2.373  0.303
+    1 persistence 24562           7.942         13.795  0.424  -9.284 -2.719
+    2   noaa_best 24730          10.339         12.348  0.163  -3.033 -1.135
+    2      aqm_bc 24730          10.339         12.348  0.163  -3.033 -1.135
+    2 persistence 24144          10.089         14.965  0.326  -7.363 -2.544
+    3   noaa_best 23787          11.730         15.475  0.242  -7.233 -1.254
+    3 persistence 23787          11.730         15.475  0.242  -7.233 -1.254
+
+vs. official EPA AQI forecast (reporting areas, category scores)
+ lead          who  n_area_days  cat_acc  usg_events  usg_pod  usg_far  usg_csi
+    0    smokecast        11311    0.925         228    0.737    0.147    0.654
+    0 epa_forecast        11311    0.838         228    0.654    0.427    0.440
+    1    smokecast        11130    0.883         248    0.718    0.353    0.516
+    1 epa_forecast        11130    0.823         248    0.452    0.493    0.314
+    2    smokecast         6911    0.894         195    0.631    0.339    0.477
+    2 epa_forecast         6911    0.848         195    0.359    0.352    0.300
+    3    smokecast         5810    0.897         123    0.382    0.484    0.281
+    3 epa_forecast         5810    0.878         123    0.106    0.316    0.101
+
+wrote ./outputs/backtest/west_us_peaks_w1
