@@ -1,0 +1,49 @@
+# Serein family messages - English (source language).
+# Based on EPA/CDC wildfire-smoke guidance for children with asthma.
+# MUST be reviewed by a clinician / asthma educator before any real use (TODO C-8).
+language: English
+review_status: draft - not yet clinically reviewed
+
+day_labels:
+  today: today
+  tomorrow: tomorrow
+  day_after: the day after tomorrow
+
+categories:
+  Good: Good
+  Moderate: Moderate
+  Unhealthy for Sensitive Groups: Unhealthy for Sensitive Groups
+  Unhealthy: Unhealthy
+  Very Unhealthy: Very Unhealthy
+  Hazardous: Hazardous
+
+forecast_line: "Smoke forecast near you: about {pm} µg/m³ (could reach {pm_hi}). Air quality: {category}."
+risk_line: "Chance {name} has asthma symptoms {day}: about {risk}%."
+personal_note: "Based on {name}'s own log, smoke at this level has caused symptoms before."
+
+zones:
+  green:
+    title: "GREEN for {name} {day}: normal day."
+    actions:
+      - "Take daily controller medicine as prescribed."
+      - "Outdoor play is fine."
+      - "Keep the rescue inhaler with {name} as usual."
+  yellow:
+    title: "YELLOW for {name} {day}: smoke may cause symptoms."
+    actions:
+      - "Keep the rescue inhaler with {name} at all times, including at school."
+      - "Swap hard outdoor activity (running, sports practice) for indoor activity."
+      - "Keep windows and doors closed; run an air purifier (HEPA) if you have one."
+      - "Follow the YELLOW zone of {name}'s asthma action plan if symptoms start."
+      - "Tell the school nurse or coach that it is a smoke day."
+  red:
+    title: "RED for {name} {day}: high smoke risk. Plan to stay indoors."
+    actions:
+      - "Stay indoors in a room with windows closed and an air purifier running."
+      - "No outdoor exercise. Use the car's recirculate setting when driving."
+      - "Keep the rescue inhaler close and follow {name}'s asthma action plan."
+      - "Call your child's doctor today if symptoms are worse than usual."
+      - "If you must go outside briefly, limit the time; ask your doctor whether a well-fitting mask is right for {name}."
+
+emergency: "GET HELP NOW (call 911) if {name} struggles to breathe or talk, their lips or nails turn blue or gray, or the rescue inhaler isn't helping."
+disclaimer: "Serein gives forecasts, not medical advice. Always follow the asthma action plan from your child's doctor."

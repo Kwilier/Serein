@@ -1,0 +1,51 @@
+# Serein - mensajes para familias - Español.
+# BORRADOR: debe ser revisado por un hablante nativo Y por un profesional de salud
+# antes de cualquier uso real (TODO C-7, C-8). No usar traducción automática sin revisión.
+# 2026-11-01: categorías del ICA cambiadas a los nombres oficiales de la EPA
+# (airnow.gov/aqi/aqi-basics-in-spanish). Terminología revisada contra materiales de la EPA.
+language: Español
+review_status: terminology aligned with EPA Spanish AQI names; STILL needs native-speaker and clinical review
+
+day_labels:
+  today: hoy
+  tomorrow: mañana
+  day_after: pasado mañana
+
+categories:
+  Good: Bueno
+  Moderate: Moderado
+  Unhealthy for Sensitive Groups: Insalubre para grupos sensibles
+  Unhealthy: Insalubre
+  Very Unhealthy: Muy insalubre
+  Hazardous: Peligroso
+
+forecast_line: "Pronóstico de humo cerca de usted: unos {pm} µg/m³ (podría llegar a {pm_hi}). Índice de calidad del aire (ICA): {category}."
+risk_line: "Probabilidad de que {name} tenga síntomas de asma {day}: alrededor de {risk}%."
+personal_note: "Según el registro de {name}, el humo a este nivel ya le ha causado síntomas."
+
+zones:
+  green:
+    title: "VERDE para {name} {day}: día normal."
+    actions:
+      - "Dele a {name} su medicamento de control diario como se lo recetaron."
+      - "Puede jugar afuera."
+      - "Que {name} lleve su inhalador de alivio rápido (de rescate) como siempre."
+  yellow:
+    title: "AMARILLO para {name} {day}: el humo podría causar síntomas."
+    actions:
+      - "Que {name} tenga su inhalador de alivio rápido (de rescate) en todo momento, también en la escuela."
+      - "Cambie la actividad física intensa al aire libre (correr, deportes) por actividades bajo techo."
+      - "Mantenga puertas y ventanas cerradas; use un purificador de aire portátil con filtro HEPA si tiene uno."
+      - "Si empiezan los síntomas, siga la zona AMARILLA del plan de acción para el asma de {name}."
+      - "Avise a la enfermera de la escuela o al entrenador que es un día de humo."
+  red:
+    title: "ROJO para {name} {day}: riesgo alto por humo. Planee quedarse adentro."
+    actions:
+      - "Quédense adentro, en un cuarto con las ventanas cerradas y un purificador de aire encendido."
+      - "Nada de ejercicio al aire libre. En el carro, use el modo de recirculación de aire."
+      - "Tenga el inhalador de alivio rápido a la mano y siga el plan de acción para el asma de {name}."
+      - "Llame hoy al médico de su hijo/a si los síntomas están peor que de costumbre."
+      - "Si tiene que salir, que sea poco tiempo; pregunte a su médico si una mascarilla bien ajustada es adecuada para {name}."
+
+emergency: "BUSQUE AYUDA DE INMEDIATO (llame al 911) si a {name} le cuesta respirar o hablar, se le ponen los labios o uñas azules o grises, o el inhalador de alivio rápido no le ayuda."
+disclaimer: "Serein da pronósticos, no consejos médicos. Siga siempre el plan de acción para el asma que le dio el médico de su hijo/a."
