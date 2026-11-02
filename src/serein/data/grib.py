@@ -1,0 +1,110 @@
+"""GRIB2 decoding + nearest-grid-point lookup, shared by HRRR and AQM."""
+
+from __future__ import annotations
+
+import hashlib
+import threading
+from dataclasses import dataclass
+
+import eccodes
+import numpy as np
+from scipy.spatial import cKDTree
+
+from serein.config import interim_dir
+
+# ecCodes is not guaranteed thread-safe; serialize decoding and index building.
+_LOCK = threading.RLock()
+
+
+def _unit_xyz(lat, lon):
+    lat = np.radians(np.asarray(lat, dtype=float))
+    lon = np.radians(np.asarray(lon, dtype=float))
+    return np.stack([np.cos(lat) * np.cos(lon), np.cos(lat) * np.sin(lon), np.sin(lat)], -1)
+
+
+@dataclass
+class GribField:
+    short_name: str
+    level: str
+    start_step: int
+    end_step: int
+    values: np.ndarray  # flat, NaN for missing
+    units: str
+
+
+def decode_messages(blob: bytes, with_grid: bool = False):
+    """Decode every GRIB message in ``blob``.
+
+    Returns (fields, (lat, lon) or None).
+    """
+    with _LOCK:
+        return _decode(blob, with_grid)
+
+
+def _decode(blob: bytes, with_grid: bool):
+    fields, grid = [], None
+    pos = 0
+    while True:
+        i = blob.find(b"GRIB", pos)
+        if i < 0:
+            break
+        length = int.from_bytes(blob[i + 8:i + 16], "big")  # GRIB2 total length
+        msg = blob[i:i + length]
+        pos = i + max(length, 16)
+        h = eccodes.codes_new_from_message(msg)
+        try:
+            vals = eccodes.codes_get_values(h).astype(np.float32)
+            missing = eccodes.codes_get_double(h, "missingValue")
+            if eccodes.codes_get_long(h, "bitmapPresent"):
+                vals[vals == missing] = np.nan
+            vals[vals >= 9999.0] = np.nan  # AQM uses 9999 as fill
+            if with_grid and grid is None:
+                lat = eccodes.codes_get_array(h, "latitudes")
+                lon = eccodes.codes_get_array(h, "longitudes")
+                lon = np.where(lon > 180, lon - 360, lon)
+                grid = (lat, lon)
+
+            def s(key):
+                try:
+                    return eccodes.codes_get_string(h, key)
+                except Exception:
+                    return ""
+
+            fields.append(GribField(
+                short_name=s("shortName"), level=s("typeOfLevel") + ":" + s("level"),
+                start_step=int(eccodes.codes_get_long(h, "startStep")),
+                end_step=int(eccodes.codes_get_long(h, "endStep")),
+                values=vals, units=s("units"),
+            ))
+        finally:
+            eccodes.codes_release(h)
+    return fields, grid
+
+
+class PointIndex:
+    """Nearest grid cell for each point; cached on disk per (grid, points)."""
+
+    def __init__(self, grid_name: str, lat_grid, lon_grid, pt_lat, pt_lon,
+                 max_km: float = 10.0):
+        key = hashlib.sha1(
+            np.ascontiguousarray(np.c_[pt_lat, pt_lon]).astype(np.float64).tobytes()
+        ).hexdigest()[:12]
+        cache = interim_dir("grid_index") / f"{grid_name}_{len(lat_grid)}_{key}.npz"
+        with _LOCK:
+            self._load_or_build(cache, lat_grid, lon_grid, pt_lat, pt_lon)
+        self.valid = self.dist_km <= max_km
+
+    def _load_or_build(self, cache, lat_grid, lon_grid, pt_lat, pt_lon):
+        if cache.exists():
+            z = np.load(cache)
+            self.idx, self.dist_km = z["idx"], z["dist_km"]
+        else:
+            tree = cKDTree(_unit_xyz(lat_grid, lon_grid))
+            d, idx = tree.query(_unit_xyz(pt_lat, pt_lon))
+            self.idx, self.dist_km = idx.astype(np.int64), d * 6371.0
+            np.savez(cache, idx=self.idx, dist_km=self.dist_km)
+
+    def sample(self, values: np.ndarray) -> np.ndarray:
+        out = values[self.idx].astype(np.float32)
+        out[~self.valid] = np.nan
+        return out
