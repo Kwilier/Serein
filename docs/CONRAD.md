@@ -22,7 +22,7 @@ was picked on the Lean Canvas.
 | # | Question (word limit) | Where our material is |
 |---|---|---|
 | 1 | Elevator Pitch (150) | README intro |
-| 2 | Team (150) | README "Team workstreams" (fill in names/roles) |
+| 2 | Team (150) | README task S-3 (names, roles) |
 | 3 | Opportunity (300) | README "three gaps"; interviews (E-1) |
 | 4 | Key Metrics (750): how it works, what's new, impact, IP protection | docs/METHODS.md; backtest results (D-5); AirPlan simulation |
 | 5 | Validation/Progress (450) | Backtest vs NOAA + EPA (`outputs/backtest/`), simulation study, expert feedback (C-8), interviews |

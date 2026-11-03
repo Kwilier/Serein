@@ -50,12 +50,26 @@ def _week_parity(df):
     return pd.to_datetime(df["issue_date"]).dt.isocalendar().week.to_numpy() % 2
 
 
+def _git(*cmd) -> str:
+    return subprocess.check_output(["git", *cmd], cwd=REPO_ROOT, text=True,
+                                   stderr=subprocess.DEVNULL).strip()
+
+
+def _code_is_dirty() -> bool:
+    """True if tracked code or configs differ from the last commit."""
+    try:
+        return bool(_git("status", "--porcelain", "--untracked-files=no", "--",
+                         "src", "configs", "scripts", "pyproject.toml", "uv.lock"))
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def _git_rev() -> str:
     try:
-        return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT,
-                                       text=True, stderr=subprocess.DEVNULL).strip()
+        rev = _git("rev-parse", "--short", "HEAD")
     except Exception:  # noqa: BLE001
         return "unknown"
+    return rev + (" + uncommitted changes" if _code_is_dirty() else "")
 
 
 def _rows_from_graph(q_tn: np.ndarray, gd, n_rows: int) -> np.ndarray:
@@ -77,8 +91,8 @@ def _gbm_features(df, X, g, node_ids):
         nb = idw_neighbor_mean(np.log1p(wide.clip(lower=0).to_numpy()), g)
         long = pd.DataFrame(nb, index=days, columns=node_ids).stack(future_stack=True)
         long.index.names = ["issue_date", "point_id"]
-        v = (df.set_index(["issue_date", "point_id"]).index.map(long.to_dict().get)
-             .to_numpy(dtype=np.float32, na_value=np.nan))
+        keys = pd.MultiIndex.from_arrays([df["issue_date"], df["point_id"]])
+        v = long.reindex(keys).to_numpy(dtype=np.float32, na_value=np.nan)
         extra += [np.nan_to_num(v), (~np.isfinite(v)).astype(np.float32)]
     return np.concatenate([X, np.stack(extra, 1)], 1)
 
@@ -91,11 +105,22 @@ def prob_exceed(q_log: np.ndarray, levels, thr: float = 35.5) -> np.ndarray:
     """
     t = np.log1p(thr)
     lv = np.asarray(levels, float)
-    out = np.full(len(q_log), np.nan)
-    for i, q in enumerate(q_log):
-        if np.all(np.isfinite(q)):
-            cdf = np.interp(t, q, lv, left=lv[0] / 2, right=1 - (1 - lv[-1]) / 2)
-            out[i] = 1 - cdf
+    q = np.asarray(q_log, float)
+    out = np.full(len(q), np.nan)
+    ok = np.all(np.isfinite(q), axis=1)
+    if not ok.any():
+        return out
+    q = q[ok]
+    # Same as np.interp(t, q_row, lv, left=..., right=...) for every row at once.
+    k = np.clip((q <= t).sum(1), 1, q.shape[1] - 1)   # q[k-1] <= t < q[k]
+    r = np.arange(len(q))
+    x0, x1 = q[r, k - 1], q[r, k]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        frac = np.where(x1 > x0, (t - x0) / (x1 - x0), 1.0)
+    cdf = lv[k - 1] + np.clip(frac, 0, 1) * (lv[k] - lv[k - 1])
+    cdf = np.where(t < q[:, 0], lv[0] / 2, cdf)
+    cdf = np.where(t > q[:, -1], 1 - (1 - lv[-1]) / 2, cdf)
+    out[ok] = 1 - cdf
     return out
 
 
@@ -149,6 +174,10 @@ def run_backtest(study: Study, args) -> dict:
         if lock.exists() and not getattr(args, "force", False):
             raise SystemExit(f"Final test already run ({lock}). Re-running needs --force and "
                              "a note in docs/BACKTEST_PROTOCOL.md explaining why.")
+        if _code_is_dirty():
+            # The commit is the proof of what was run: no final test on unsaved code.
+            raise SystemExit("Commit (and push) the code before the final test: src/, configs/, "
+                             "scripts/ or the lock files have uncommitted changes.")
     else:
         test = conf  # dev mode: score on odd weeks of the calibration season
         conf = val   # ...and calibrate intervals on the even weeks
@@ -364,8 +393,6 @@ def run_backtest(study: Study, args) -> dict:
         log("\nRMSE at HIDDEN monitors (no readings; persistence/climatology use data a "
             "real unmonitored place would not have)\n" + show.round(2).to_string())
     show = met[(met.subset == "all")].pivot_table(index="model", columns="lead", values="usg_csi")
-    met[(met.subset == "all")].pivot_table(index="model", columns="lead", values="usg_pod")
-    met[(met.subset == "all")].pivot_table(index="model", columns="lead", values="usg_far")
     log("\nUSG+ critical success index (higher is better)\n" + show.round(3).to_string())
     cov = met[(met.subset == "all") & met["coverage90"].notna()].pivot_table(
         index="model", columns="lead", values="coverage90")
@@ -399,6 +426,11 @@ def compare_with_epa(study, test, smokecast_pm, leads, pts, warn=None) -> pd.Dat
     fc = load_forecasts(days)
     if fc.empty:
         return pd.DataFrame()
+    # Area names are not unique across states (e.g. "Concord", "Dayton"): keep only
+    # areas inside the study region, and match observations on (area, state).
+    fc = fc[study.region.contains(fc["lat"], fc["lon"])]
+    if fc.empty:
+        return pd.DataFrame()
     obs_days = sorted({d + pd.Timedelta(days=lead).to_pytimedelta() for d in days for lead in leads})
     ob = load_observed_area_aqi(obs_days)
     if ob.empty:
@@ -420,11 +452,12 @@ def compare_with_epa(study, test, smokecast_pm, leads, pts, warn=None) -> pd.Dat
         t = t.merge(sa, on="point_id")
         area = t.groupby(["issue_date", "reporting_area"]).agg(
             pm=("pm", "max"), warn=("warn", "max")).reset_index()
-        f = fc[fc["lead"] == lead][["as_of", "valid_date", "reporting_area", "category_idx"]]
+        f = fc[fc["lead"] == lead][["as_of", "valid_date", "reporting_area", "state", "category_idx"]]
         f = f.rename(columns={"as_of": "issue_date", "category_idx": "epa_cat"})
         m = area.merge(f, on=["issue_date", "reporting_area"])
-        m = m.merge(ob.rename(columns={"category_idx": "obs_cat"})[["valid_date", "reporting_area", "obs_cat"]],
-                    on=["valid_date", "reporting_area"])
+        m = m.merge(ob.rename(columns={"category_idx": "obs_cat"})[
+                        ["valid_date", "reporting_area", "state", "obs_cat"]],
+                    on=["valid_date", "reporting_area", "state"])
         m = m.dropna(subset=["epa_cat", "obs_cat", "pm"])
         if m.empty:
             continue

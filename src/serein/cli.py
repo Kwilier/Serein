@@ -73,11 +73,16 @@ def cmd_download(args):
             days, max(1, args.workers // 4), "aqm")
     if src == "firms":
         from serein.data import firms
-        df = firms.download_range(days[0], days[-1], study.region)
-        print(f"firms: {len(df)} detections")
+        # Only the season days (plus the day before each run, for the 24 h window),
+        # not every day between the first and last date.
+        n = 0
+        for start, end in firms.contiguous_runs(days):
+            n += len(firms.download_range(start - timedelta(days=1), end, study.region))
+        print(f"firms: {n} detections")
 
 
 def cmd_build_points(args):
+    from serein.config import raw_dir
     from serein.data import airnow
     from serein.data.points import build_points, save_points
 
@@ -90,7 +95,7 @@ def cmd_build_points(args):
     # Keep sites with enough data to be useful.
     sites = sites[sites["n_hours"] >= args.min_hours]
     pa = None
-    pa_path = REPO_ROOT / "data" / "raw" / "purpleair" / "sensors.parquet"
+    pa_path = raw_dir("purpleair") / "sensors.parquet"  # honors SEREIN_DATA
     if pa_path.exists():
         pa = pd.read_parquet(pa_path)
     grid = study.raw.get("grid_step_deg") if not args.no_grid else None
@@ -133,6 +138,16 @@ def cmd_map(args):
     fc.to_parquet(out / f"forecast_{day:%Y%m%d}.parquet", index=False)
     plot_map(fc, out / f"map_{day:%Y%m%d}.png")
     print(f"wrote {out / f'map_{day:%Y%m%d}.png'}")
+
+
+def cmd_explain(args):
+    from serein.data.airnow import parse_date
+    from serein.eval.explain import explain_point
+
+    study = load_study(args.config)
+    run = REPO_ROOT / "outputs" / "backtest" / args.run
+    ex = explain_point(study, parse_date(args.date), run, args.point, lead=args.lead)
+    print(ex.text())
 
 
 def cmd_transfer(args):
@@ -229,6 +244,14 @@ def main(argv=None):
     sp.add_argument("--run", default="west_us_dev", help="folder in outputs/backtest/")
     sp.add_argument("--no-grid", action="store_true")
     sp.set_defaults(fn=cmd_map)
+
+    sp = sub.add_parser("explain", help="which neighbors and inputs drove one forecast")
+    sp.add_argument("--config", default=DEFAULT_CONFIG)
+    sp.add_argument("--date", required=True)
+    sp.add_argument("--point", required=True, help="monitor ID (AQS) or grid cell ID")
+    sp.add_argument("--lead", type=int, default=1, help="days ahead (0-3)")
+    sp.add_argument("--run", default="west_us_dev", help="folder in outputs/backtest/")
+    sp.set_defaults(fn=cmd_explain)
 
     sp = sub.add_parser("transfer", help="apply a trained run to another region (test!)")
     sp.add_argument("--config", default=str(REPO_ROOT / "configs" / "northeast_2023.yaml"))

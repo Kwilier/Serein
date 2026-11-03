@@ -23,14 +23,35 @@ def standard_offset(lon) -> np.ndarray:
     return np.clip(np.round(np.asarray(lon, float) / 15.0), -10, -4).astype(int)
 
 
-def grid_points(region: Region, step: float) -> pd.DataFrame:
+def nearest_site_offset(lat, lon, sites: pd.DataFrame | None) -> np.ndarray:
+    """UTC offset of the nearest EPA site (exact, from AirNow); longitude guess if none.
+
+    Longitude alone is wrong near time-zone borders (e.g. Boise is UTC-7 at -116.2).
+    """
+    lat, lon = np.asarray(lat, float), np.asarray(lon, float)
+    if sites is None or not len(sites) or "gmt_offset" not in sites:
+        return standard_offset(lon)
+    s = sites.dropna(subset=["lat", "lon", "gmt_offset"])
+    if not len(s):
+        return standard_offset(lon)
+    slat, slon = np.radians(s["lat"].to_numpy(float)), np.radians(s["lon"].to_numpy(float))
+    off = s["gmt_offset"].to_numpy(float)
+    out = np.empty(len(lat), dtype=int)
+    for i0 in range(0, len(lat), 2000):  # chunked to keep memory small
+        a, b = np.radians(lat[i0:i0 + 2000])[:, None], np.radians(lon[i0:i0 + 2000])[:, None]
+        d = np.sin((slat - a) / 2) ** 2 + np.cos(a) * np.cos(slat) * np.sin((slon - b) / 2) ** 2
+        out[i0:i0 + 2000] = np.round(off[np.argmin(d, axis=1)]).astype(int)
+    return out
+
+
+def grid_points(region: Region, step: float, sites: pd.DataFrame | None = None) -> pd.DataFrame:
     lats = np.arange(region.lat_min, region.lat_max + 1e-9, step)
     lons = np.arange(region.lon_min, region.lon_max + 1e-9, step)
     la, lo = np.meshgrid(lats, lons, indexing="ij")
     df = pd.DataFrame({"lat": la.ravel().round(4), "lon": lo.ravel().round(4)})
     df["point_id"] = [f"G{a:+08.3f}{b:+09.3f}" for a, b in zip(df["lat"], df["lon"])]
     df["kind"] = "grid"
-    df["gmt_offset"] = standard_offset(df["lon"])
+    df["gmt_offset"] = nearest_site_offset(df["lat"], df["lon"], sites)
     return df
 
 
@@ -46,10 +67,10 @@ def build_points(sites: pd.DataFrame, region: Region, grid_step: float | None,
         p = purpleair[region.contains(purpleair["lat"], purpleair["lon"])].copy()
         p["point_id"] = "PA" + p["sensor_index"].astype(str)
         p["kind"] = "purpleair"
-        p["gmt_offset"] = standard_offset(p["lon"])
+        p["gmt_offset"] = nearest_site_offset(p["lat"], p["lon"], s)
         parts.append(p[["point_id", "lat", "lon", "kind", "gmt_offset"]])
     if grid_step:
-        parts.append(grid_points(region, grid_step))
+        parts.append(grid_points(region, grid_step, s))
     pts = pd.concat(parts, ignore_index=True).drop_duplicates("point_id")
     return pts.reset_index(drop=True)
 

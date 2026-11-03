@@ -4,6 +4,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONIOENCODING=utf-8
+mkdir -p outputs/logs  # outputs/ is git-ignored, so a fresh clone has no log folder
 L=outputs/logs
 abl () { tag=$1; shift; uv run serein backtest --no-gbm --no-ablation --seeds 3 --tag "abl_$tag" "$@" > "$L/abl_$tag.log" 2>&1; echo "abl $tag done"; }
 abl full

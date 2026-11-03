@@ -27,7 +27,7 @@ class Availability:
     firms_window_hours: float = 24
 
     @classmethod
-    def from_study(cls, raw: dict) -> "Availability":
+    def from_study(cls, raw: dict) -> Availability:
         a = raw.get("availability", {})
         return cls(issue_hour_utc=raw.get("issue_hour_utc", 18.5), **a)
 

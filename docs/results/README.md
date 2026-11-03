@@ -1,6 +1,6 @@
-# Results snapshot (2026-11-01, dev mode)
+# Results snapshot (2026-11-02, dev mode)
 
-A copy of the key outputs so teammates can see results **without** re-downloading
+A copy of the key outputs so anyone can read the results **without** re-downloading
 ~150 GB of data. Everything here is **development** scoring: trained on 2021-22,
 scored on held-out (odd ISO) weeks of 2023. The 2024-25 test seasons have NOT been
 scored yet (see "Finishing the proof" in the main README).
@@ -16,8 +16,8 @@ scored yet (see "Finishing the proof" in the main README).
 | `impact.txt` | Plain-English impact numbers (warned smoky days, false alarms) |
 | `airplan_simulation_summary.csv` | AirPlan synthetic-children study (Brier gain by days logged) |
 | `figures/` | Charts and the August 2023 forecast map for the brief, video and website |
-| `logs/abl_*.log` | Input ablations (final code). Summary table in `docs/METHODS.md` |
-| `logs/peaks_w*.log` | Smoke-day loss-weight experiment (B-13) |
+| `logs/abl_*.log` | Input ablations (current code, rerun 2026-11-02 with repeatable training). Summary table in `docs/METHODS.md` |
+| `logs/peaks_w*.log` | Smoke-day loss-weight experiment (B-13). **Earlier code version** (before the 2026-11-01 code-review fixes) |
 | `logs/sweep_*_reg*.log` | Settings sweep. **Earlier code version** (before smoke weighting and the neighbor-based base), so numbers differ slightly from the final dev run |
 
 To regenerate everything: `./scripts/run_dev_suite.sh` (after downloading data).

@@ -114,3 +114,14 @@ def test_model_daily_leads():
     assert set(g["lead"]) == {0, 1, 2}
     assert np.isnan(g.loc[g["lead"] == 2, "mean"]).all()  # only 4 h on lead 2
     assert g.loc[g["lead"] == 1, "size"].iloc[0] == 24
+
+
+def test_time_zone_from_nearest_monitor_not_longitude():
+    import pandas as pd
+
+    from serein.data.points import nearest_site_offset, standard_offset
+
+    sites = pd.DataFrame({"lat": [43.6, 47.6], "lon": [-116.2, -122.3], "gmt_offset": [-7, -8]})
+    assert standard_offset([-116.0])[0] == -8          # longitude alone gets Boise wrong
+    assert nearest_site_offset([43.5], [-116.0], sites)[0] == -7
+    assert nearest_site_offset([47.0], [-122.0], sites)[0] == -8

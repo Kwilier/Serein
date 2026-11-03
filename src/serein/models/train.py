@@ -34,6 +34,10 @@ class TrainConfig:
     smoke_weight: float = 6.0   # weight for targets >= 35.5 µg/m³ (chosen on dev weeks, B-13)
     seed: int = 0
     use_graph: bool = True
+    # Same seed => identical model. The graph step adds messages with GPU atomics,
+    # whose order changes run to run; without this, two runs of the same code moved
+    # the day-2 warning rate by 7 points. Costs ~1.8x training time.
+    deterministic: bool = True
 
 
 def _device():
@@ -45,6 +49,7 @@ class Trainer:
                  cfg: TrainConfig | None = None):
         cfg = cfg or TrainConfig()
         self.cfg, self.dev = cfg, _device()
+        torch.use_deterministic_algorithms(cfg.deterministic)
         torch.manual_seed(cfg.seed)
         np.random.seed(cfg.seed)
         self.model = SmokeCastGNN(n_feat, n_leads, cfg.hidden, cfg.layers, cfg.heads,

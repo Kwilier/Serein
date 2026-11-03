@@ -47,3 +47,13 @@ zones:
 
 emergency: "GET HELP NOW (call 911) if {name} struggles to breathe or talk, their lips or nails turn blue or gray, or the rescue inhaler isn't helping."
 disclaimer: "Serein gives forecasts, not medical advice. Always follow the asthma action plan from your child's doctor."
+
+# Short text-message (SMS) version. Kept to plain characters (ug/m3, not µg/m³) so
+# it is sent in the cheaper GSM-7 encoding. {link} opens the full plan.
+sms:
+  green: "Serein: GREEN for {name} {day}. Smoke about {pm} ug/m3 ({category}). Normal day; keep the rescue inhaler as usual. Plan: {link}"
+  yellow: "Serein: YELLOW for {name} {day}. Smoke about {pm} ug/m3 ({category}). Keep the rescue inhaler with {name}, choose indoor activity, close windows. Plan: {link}"
+  red: "Serein: RED for {name} {day}. Smoke about {pm} ug/m3 ({category}). Stay indoors with windows closed, no outdoor exercise, follow the asthma plan. Plan: {link}"
+  emergency: "Trouble breathing or talking, or blue lips? Call 911."
+  opt_out: "Reply STOP to end."
+

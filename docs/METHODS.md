@@ -75,23 +75,46 @@ RMSE in µg/m³; percentages are how much worse than the full model.
 
 | Removed | Today | +1 day | +2 days | +3 days |
 |---|---|---|---|---|
-| nothing (full model) | 4.44 | 7.81 | 9.80 | 11.49 |
-| live sensor readings | 7.29 (+64%) | 8.31 (+6%) | 10.18 (+4%) | 11.85 (+3%) |
-| HRRR-Smoke + HRRR weather | 5.06 (+14%) | 10.16 (+30%) | 11.30 (+15%) | 11.85 (+3%) |
-| NOAA AQM | 5.08 (+14%) | 8.24 (+6%) | 10.73 (+9%) | 12.37 (+8%) |
-| HMS smoke plumes | 4.53 (+2%) | 8.12 (+4%) | 9.56 (-2%) | 11.28 (-2%) |
-| satellite fire detections | 4.26 (-4%) | 7.84 (0%) | 9.62 (-2%) | 11.28 (-2%) |
-| wind direction on graph edges | 4.44 (0%) | 7.77 (-1%) | 9.81 (0%) | 11.49 (0%) |
+| nothing (full model) | 4.45 | 7.85 | 9.71 | 11.33 |
+| live sensor readings | 7.37 (+66%) | 8.79 (+12%) | 10.48 (+8%) | 12.13 (+7%) |
+| HRRR-Smoke + HRRR weather | 5.04 (+13%) | 10.15 (+29%) | 11.28 (+16%) | 11.85 (+5%) |
+| NOAA AQM | 5.07 (+14%) | 8.39 (+7%) | 10.72 (+10%) | 12.47 (+10%) |
+| HMS smoke plumes | 4.47 (0%) | 8.23 (+5%) | 10.18 (+5%) | 11.68 (+3%) |
+| satellite fire detections | 4.64 (+4%) | 8.19 (+4%) | 9.85 (+1%) | 11.52 (+2%) |
+| wind direction on graph edges | 4.52 (+1%) | 7.85 (0%) | 9.73 (0%) | 11.32 (0%) |
+
+(Rerun 2026-11-02 with repeatable training: the same seed now gives the same model, so
+these numbers reproduce exactly. Earlier fixes still apply: no self-edges in the graph,
+and the no-sensor row also hides `hrrr_pm`, which carries each site's clean-air history.)
 
 What this means:
 - **No single source is enough.** Live sensors carry "today"; NOAA's physics models
   (HRRR, AQM) carry days 1-3. Serein's value is combining them.
-- **Honest negatives.** Fire detections add nothing measurable, likely because HRRR-Smoke
-  already uses satellite fire data. Wind direction on graph edges also adds nothing:
+- **Small gains.** Fire detections and HMS plume maps help only a little (1-5% on
+  days 1-3; fires 4% today), likely because HRRR-Smoke already uses satellite fire
+  data. Wind direction on graph edges adds nothing:
   every node already gets the wind as an input, so the network doesn't need it twice.
   Our original "listen to upwind neighbors" idea was not needed; the graph's value
   shows up as forecasting places with no sensor (leave-sites-out test).
 - Differences under ~0.2 µg/m³ are within seed-to-seed noise.
+
+### Why this forecast? (explainability, B-11)
+
+`serein explain --date 2023-08-18 --point 530630047 --lead 1` answers two
+questions for one place and day (code: `serein/eval/explain.py`):
+
+- **Which inputs moved it.** Integrated gradients (Sundararajan et al., ICML 2017)
+  from an "average day" (every input at its training mean, same missing-data
+  pattern, same base forecast) to the real day. The parts add up exactly to the
+  gap, shown as multipliers on PM2.5 + 1, grouped by source.
+- **Which neighbors it listened to.** Attention weights from the last graph layer,
+  averaged over heads (they add up to 1 for each place).
+
+Example, Spokane, issued Aug 18, 2023, one day ahead: median 84 µg/m³ vs. 29 for an
+average day. HRRR smoke raised it x9.2, fire detections x1.3; live readings (x0.52)
+and AQM (x0.39) pulled it down. Top neighbors: monitors 14, 47 and 14 km away
+(weights 0.34, 0.26, 0.15). Attention weights show what the model weighed, not
+proof of cause; they are one layer of two.
 
 ## Model 2: AirPlan
 
@@ -145,6 +168,16 @@ line search fixed it (see `tests/test_personal.py`).
 | Extra effect when outdoors | 1.02 (SD 0.15) | No pediatric estimate found | Assumption; outdoor time raises dose |
 | Respiratory virus / cold | 4.0 (SD 0.5) | Khetsuriani et al. 2007, *J Allergy Clin Immunol* 119:314: any virus OR 5.6 (2.7-11.6), rhinovirus OR 6.8; a Hong Kong study found OR 2.77 (1.51-5.11) | Exacerbations, not daily symptoms |
 | Missed controller medicine | 1.6 (SD 0.4) | Williams et al. 2011, *J Allergy Clin Immunol* 128:1185: HR 0.61 (0.41-0.90) for > 75% vs ≤ 25% ICS adherence; 24% of exacerbations attributable to nonadherence | Mixed-age cohort; some pediatric studies find reverse associations (confounding by severity) |
+| 8-h ozone above 30 ppb, per +10 ppb (C-10) | 1.027 (SD 0.10) | Strickland et al. 2010, *Am J Respir Crit Care Med* 182:307, Table 2: pediatric asthma ED visits, Atlanta, warm season RR 1.082 (1.043-1.123) per 29.2 ppb (IQR) of 3-day average 8-h ozone; dose-response from about 30 ppb | ED visits, one city; scaled linearly to 10 ppb |
+| Hot day, max ≥ 32 °C / 90 °F (C-10) | 1.0 (SD 0.4) | No verified pediatric per-day estimate: studies disagree (Brisbane: hot days raise child asthma ED visits; New York: lower risk for children with asthma) | Assumption centered on "no effect"; the child's log decides |
+| High pollen day (C-10) | 1.0 (SD 0.4) | Only all-age evidence found (Atlanta, Darrow et al.: about +10-15% ED visits on 95th-percentile grass and oak days, as reported in the press; primary paper not yet checked) | Assumption centered on "no effect"; no free US pollen forecast, so this comes from the family's check-in |
+
+Why the confounders (C-10): smoke season is also ozone, heat and pollen season.
+Without these terms the model would blame smoke for their effect and
+overestimate a child's smoke sensitivity. They also stay fixed in the clean-air
+baseline that decides the zone (only the smoke is swapped out), so a hot or high-pollen
+day by itself never triggers a smoke warning. All three default to "unknown" (no
+effect), and the synthetic-children study gives identical results with them added.
 
 Evidence we checked and chose **not** to use: Gent et al. 2009 (*Environ Health
 Perspect* 117:1168), 149 children in New Haven, found no significant link between

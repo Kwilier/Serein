@@ -99,9 +99,10 @@ Chosen using ONLY the 2023 calibration season (`scripts/sweep_graph.sh`, logs in
 | Base forecast without own sensor | distance-weighted neighbors' readings (used for masked sensors in training, hidden monitors, map grid) |
 
 Dev-mode results with these settings (scored on odd ISO weeks of 2023; NOT the
-test result): RMSE 4.5 / 7.9 / 9.9 / 11.5 µg/m³ at leads 0-3 vs. best NOAA
+test result): RMSE 4.5 / 7.9 / 9.7 / 11.4 µg/m³ at leads 0-3 vs. best NOAA
 10.1 / 11.0 / 12.3 / 15.5; at monitors hidden from the model (leave-sites-out):
-7.1 / 8.5 / 10.0 / 11.5 vs. NOAA 10.5 / 11.1 / 11.9 / 14.1.
+7.0 / 8.5 / 10.1 / 11.3 vs. NOAA 10.5 / 11.1 / 11.9 / 14.1. (Rerun 2026-11-02 with
+repeatable training; see the change log.)
 See `outputs/backtest/west_us_dev/report.md`.
 
 Caveat for the write-up: these settings were picked by looking at dev-week
@@ -122,3 +123,5 @@ number.
 | 2026-11-01 | Added 6b (settings chosen on dev weeks); leave-sites-out secondary metric | Graph only helped clearly once regularized; benefit is largest where there is no sensor |
 | 2026-11-01 | Smoke-day loss weight 6 | Peaks were under-predicted (59% of true value at day 1 → 72%); overall calibration unchanged |
 | 2026-11-01 | Neighbor-based base for places without a sensor | Grid/hidden sites fell back to generic clean air on day 3; hidden-monitor day-3 error 12.9 → 11.5 |
+| 2026-11-01 | Code-review bug fixes, dev suite rerun (no settings changed) | (1) `hrrr_pm` carried each site's own clean-air history and is now hidden wherever sensor data is hidden (masking, leave-sites-out, no-sensor ablation); (2) co-located monitors no longer get self-edges; (3) EPA comparison now matches reporting areas by name AND state, inside the study region only; (4) `figures.py` crashed before the calibration chart, improvement map and peak report, so those had not been regenerated since an earlier run. New dev numbers: RMSE 4.5 / 7.9 / 9.8 / 11.4; hidden monitors 6.9 / 8.6 / 10.1 / 11.3; day-1 warnings 71% vs. EPA 46%; day-1 peak capture 78%. Test seasons still untouched |
+| 2026-11-02 | Repeatable training (deterministic GPU algorithms), faster code, dev suite rerun (no settings changed) | Two runs of the same code gave different results because the graph step sums messages with GPU atomics in a changing order: the day-2 warning rate moved from 70% to 63%. With `torch.use_deterministic_algorithms` the same seed now gives the identical model (test added), so the one-shot final test can be reproduced exactly. The vectorized CQR, GBM features and warning probabilities gave identical numbers to the old loops. New dev numbers: RMSE 4.5 / 7.9 / 9.7 / 11.4; hidden monitors 7.0 / 8.5 / 10.1 / 11.3; day-1 warnings 71% vs. EPA 46% (81 vs. 98 false alarms); day-2 66% vs. 37%; day-1 peak capture 80%. Test seasons still untouched |

@@ -24,6 +24,12 @@ Features x_t (all known the evening before, from forecasts and the log):
   pm0 / 10 * outdoor     extra effect when the child is outdoors more (0..1)
   cold                   has a cold / virus (1/0); viruses are the #1 trigger
   missed_controller      missed daily controller medicine (1/0)
+  ozone_x30_10           8-h ozone above 30 ppb, per 10 ppb (0 if unknown)
+  hot_day                daily max temperature >= 32 °C / 90 °F (1/0)
+  high_pollen            high pollen day, from a forecast or the family (1/0)
+The last three are confounders (TODO C-10): smoke season is also ozone, heat and
+pollen season, and without them the model would blame smoke for their effect.
+They default to 0, so callers that don't know them get the old model.
 
 Prior values come from published studies (TODO C-5, done 2026-11-01); see
 docs/METHODS.md for the citations and caveats.
@@ -32,10 +38,12 @@ docs/METHODS.md for the citations and caveats.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from statistics import NormalDist
 
 import numpy as np
 
-FEATURES = ["intercept", "pm0_10", "pm_lag12_10", "pm0_x_outdoor", "cold", "missed_controller"]
+FEATURES = ["intercept", "pm0_10", "pm_lag12_10", "pm0_x_outdoor", "cold", "missed_controller",
+            "ozone_x30_10", "hot_day", "high_pollen"]
 
 
 def sigmoid(z):
@@ -56,20 +64,29 @@ class PopulationPrior:
          np.log(1.03),         # lagged days: RR 1.02-1.04 at lags 3-4; 1.13 cumulative over 0-5 d [Sugrue 2026]
          np.log(1.02),         # extra when outdoors [assumption: no pediatric estimate found]
          np.log(4.0),          # respiratory virus: OR 5.6 (2.7-11.6) [Khetsuriani 2007]; 2.77 [Hong Kong study]
-         np.log(1.6)]))        # missed controller: HR 0.61 for >75% vs <=25% ICS adherence [Williams 2011]
-    sd: np.ndarray = field(default_factory=lambda: np.array([1.0, 0.25, 0.20, 0.15, 0.5, 0.4]))
+         np.log(1.6),          # missed controller: HR 0.61 for >75% vs <=25% ICS adherence [Williams 2011]
+         np.log(1.082) / 2.92,  # ozone: warm-season RR 1.082 (1.043-1.123) per 29.2 ppb IQR,
+                                # 3-day 8-h ozone, pediatric asthma ED visits [Strickland 2010]
+         0.0,                  # hot day: no verified pediatric estimate [assumption: centered on no effect]
+         0.0]))                # high pollen: no verified pediatric estimate [assumption: centered on no effect]
+    sd: np.ndarray = field(default_factory=lambda: np.array(
+        [1.0, 0.25, 0.20, 0.15, 0.5, 0.4, 0.10, 0.4, 0.4]))
 
     @property
     def precision(self):
         return np.diag(1.0 / self.sd ** 2)
 
 
-def design_row(pm0, pm_lag1, pm_lag2, outdoor_frac, cold, missed_controller):
+def design_row(pm0, pm_lag1, pm_lag2, outdoor_frac, cold, missed_controller,
+               ozone_ppb=None, hot_day=0, high_pollen=0):
     pm0 = np.asarray(pm0, float)
     lag = (np.asarray(pm_lag1, float) + np.asarray(pm_lag2, float)) / 2
+    o3 = 0.0 if ozone_ppb is None else np.nan_to_num(np.asarray(ozone_ppb, float), nan=30.0)
     return np.stack(np.broadcast_arrays(
         np.ones_like(pm0), pm0 / 10, lag / 10, pm0 / 10 * np.asarray(outdoor_frac, float),
-        np.asarray(cold, float), np.asarray(missed_controller, float)), -1)
+        np.asarray(cold, float), np.asarray(missed_controller, float),
+        np.clip(o3 - 30.0, 0, None) / 10 if ozone_ppb is not None else np.zeros_like(pm0),
+        np.asarray(hot_day, float), np.asarray(high_pollen, float)), -1)
 
 
 @dataclass
@@ -99,12 +116,15 @@ class ChildModel:
             step = np.linalg.solve(H, grad)
             # Backtracking: big smoke days (PM/10 = 25) can make a full Newton
             # step overshoot into a flat region; halve until the posterior improves.
-            t = 1.0
+            t, new = 1.0, None
             while t > 1e-4:
-                new = log_post(b + t * step)
-                if new >= cur - 1e-12:
+                trial = log_post(b + t * step)
+                if trial >= cur - 1e-12:
+                    new = trial
                     break
                 t *= 0.5
+            if new is None:  # no step improves the posterior: already at the optimum
+                break
             b, cur = b + t * step, new
             if np.max(np.abs(t * step)) < 1e-7:
                 break
@@ -128,17 +148,29 @@ class ChildModel:
 
     def risk_under_forecast(self, pm_quantiles: dict, pm_lag1: float, pm_lag2: float,
                             outdoor_frac: float, cold: int, missed: int,
-                            n_samples: int = 4000, seed: int = 0) -> dict:
+                            n_samples: int = 4000, seed: int = 0, ozone_ppb=None,
+                            hot_day: int = 0, high_pollen: int = 0) -> dict:
         """Integrate over BOTH the smoke forecast's uncertainty and the child model's.
 
         pm_quantiles: {0.05: x, 0.5: y, 0.95: z} from SmokeCast.
         """
         rng = np.random.default_rng(seed)
         qs = np.array(sorted(pm_quantiles))
-        vals = np.log1p(np.array([pm_quantiles[q] for q in qs]))
-        u = rng.uniform(qs[0], qs[-1], n_samples)
-        pm = np.expm1(np.interp(u, qs, vals))
-        X = design_row(pm, pm_lag1, pm_lag2, outdoor_frac, cold, missed)
+        vals = np.log1p(np.clip(np.array([pm_quantiles[q] for q in qs], dtype=float), 0, None))
+        # Sample the WHOLE forecast distribution, tails included: piecewise-linear in
+        # log(PM) vs. normal z-score, extended past the outer quantiles with the outer
+        # slopes. (Sampling only between q05 and q95 would ignore the worst 5% of days.)
+        zq = np.array([NormalDist().inv_cdf(q) for q in qs])
+        z = rng.standard_normal(n_samples)
+        logpm = np.interp(z, zq, vals)
+        if len(qs) >= 2:
+            lo_slope = (vals[1] - vals[0]) / (zq[1] - zq[0])
+            hi_slope = (vals[-1] - vals[-2]) / (zq[-1] - zq[-2])
+            logpm = np.where(z < zq[0], vals[0] + (z - zq[0]) * lo_slope, logpm)
+            logpm = np.where(z > zq[-1], vals[-1] + (z - zq[-1]) * hi_slope, logpm)
+        pm = np.expm1(np.clip(logpm, 0, np.log1p(1000.0)))
+        X = design_row(pm, pm_lag1, pm_lag2, outdoor_frac, cold, missed,
+                       ozone_ppb, hot_day, high_pollen)
         m, C = self._params()
         B = rng.multivariate_normal(m, C, size=n_samples)
         p = sigmoid(np.sum(X * B, 1))

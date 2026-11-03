@@ -23,7 +23,7 @@ from tqdm import tqdm
 
 from serein.config import Study, data_dir
 from serein.data import airnow, aqm, firms, hms, hrrr
-from serein.data.availability import Availability
+from serein.data.availability import AQM_POSTED_LAG_H, HRRR_POSTED_LAG_H, Availability
 from serein.features.daily import model_daily, obs_daily_means
 
 MET_VARS = ["u10", "v10", "pbl", "t2m", "rh2m", "colmd"]
@@ -72,9 +72,15 @@ def _obs_features(hourly: pd.DataFrame, daily: pd.DataFrame, points: pd.DataFram
     return pd.concat(rows, ignore_index=True)
 
 
-def _model_features(days, points, offsets, store: str) -> pd.DataFrame:
+def _model_features(days, points, offsets, store: str, av: Availability) -> pd.DataFrame:
+    # No peeking: the configured model runs must have been public by issue time.
+    for name, cycle, lag in (("HRRR", av.hrrr_cycle, HRRR_POSTED_LAG_H),
+                             ("AQM", av.aqm_cycle, AQM_POSTED_LAG_H)):
+        if days and not av.check_model_cycle(days[0], cycle, lag):
+            raise ValueError(f"{name} {cycle:02d}z run is posted after issue time; "
+                             "pick an earlier cycle in the config")
     out = []
-    hr = hrrr.load_cycles(days, store=store)
+    hr = hrrr.load_cycles(days, cycle=av.hrrr_cycle, store=store)
     if len(hr):
         hr = hr[hr["point_id"].isin(offsets.index)]
         smoke = hr[hr["var"] == "smoke"]
@@ -90,13 +96,14 @@ def _model_features(days, points, offsets, store: str) -> pd.DataFrame:
         p = g.pivot_table(index=["issue_date", "point_id"], columns=["var", "lead"], values="mean")
         p.columns = [f"hrrr_{v}_L{lead}" for v, lead in p.columns]
         out.append(p)
-        # Wind at about issue time (fhr 6 = 18Z) for upwind fire features.
-        now = hr[(hr["fhr"] == 6) & hr["var"].isin(["u10", "v10"])].copy()
+        # Wind at about issue time (last forecast hour before it) for upwind fire features.
+        now_fhr = int(av.issue_hour_utc - av.hrrr_cycle)
+        now = hr[(hr["fhr"] == now_fhr) & hr["var"].isin(["u10", "v10"])].copy()
         now["var"] = now["var"].astype(str)
         p = now.pivot_table(index=["issue_date", "point_id"], columns="var", values="value")
         p.columns = [f"wind_now_{c}" for c in p.columns]
         out.append(p)
-    aq = aqm.load_cycles(days, store=store)
+    aq = aqm.load_cycles(days, cycle=av.aqm_cycle, store=store)
     if len(aq):
         aq = aq[aq["point_id"].isin(offsets.index)]
         g = model_daily(aq, offsets, min_count=12)
@@ -122,7 +129,7 @@ def build_table(study: Study, days: list[date], points: pd.DataFrame,
     daily = obs_daily_means(hourly, offsets)
 
     tab = _obs_features(hourly, daily, points, days, av, leads)
-    mod = _model_features(days, points, offsets, study.name)
+    mod = _model_features(days, points, offsets, study.name, av)
     if len(mod):
         tab = tab.merge(mod, on=["issue_date", "point_id"], how="left")
 
@@ -133,6 +140,11 @@ def build_table(study: Study, days: list[date], points: pd.DataFrame,
         # (no key). Only polar-orbiter passes (VIIRS/MODIS): geostationary (GOES)
         # detections repeat every few minutes and would inflate 24 h FRP sums.
         fires = firms.load_cached()
+        if len(fires):
+            # The FIRMS cache may hold other seasons only; use it just for these days.
+            t0 = pd.Timestamp(min(days)) - pd.Timedelta(days=2)
+            t1 = pd.Timestamp(max(days)) + pd.Timedelta(days=1)
+            fires = fires[fires["time_utc"].between(t0, t1)]
         if fires.empty:
             fires = hms.load_fires(days)
             if len(fires):

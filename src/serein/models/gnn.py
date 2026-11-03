@@ -16,6 +16,12 @@ cross (the 95% value is always above the 75% value, etc.).
 
 from __future__ import annotations
 
+import os
+
+# cuBLAS needs this before its first use for repeatable matrix products
+# (training and inference turn on torch.use_deterministic_algorithms).
+os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
 import torch
 import torch.nn.functional as F
 from torch import nn

@@ -15,11 +15,11 @@ When wildfire smoke rolls in, a parent of a child with asthma gets one piece of 
 
 Serein gives a smoke forecast for each neighborhood, one to three days ahead, and turns it into a plan for one specific child. Our first model corrects NOAA's smoke forecast using what air monitors are measuring right now. Our second model learns from a short daily check-in how much smoke affects that child, then sends the family a green, yellow or red plan in their own language.
 
-On held-out 2023 fire-season days, Serein warned a day ahead on 66% of the days that reached "Unhealthy for Sensitive Groups". EPA's official forecast warned on 45%, and Serein raised fewer false alarms (79 vs. 109).
+On held-out 2023 fire-season days, Serein warned a day ahead on 71% of the days that reached "Unhealthy for Sensitive Groups". EPA's official forecast warned on 46%, and Serein raised fewer false alarms (81 vs. 98).
 
 ## 2. Team (150 words)
 
-[TEAM: one line per person: name, grade, school, what they own. Suggested split from the README workstreams:]
+[TEAM: one line per person: name, grade, school, what they own. Suggested split by task area (README task board A to E):]
 
 - [Name], [grade]: data pipeline (fire, smoke, weather and air monitor data from NASA, NOAA and EPA)
 - [Name], [grade]: SmokeCast, the neighborhood forecast model and the backtest
@@ -55,7 +55,7 @@ AirPlan turns that forecast into advice for one child. A parent answers a six-qu
 
 **What is new.**
 1. Correcting NOAA's smoke forecast with live monitor readings, and checking the result against NOAA and EPA on days the model never saw.
-2. Forecasts for places with no monitor. When we hid 20% of monitors from the model, its forecasts at those hidden sites still beat NOAA's (10.0 vs. 11.9 µg/m³ error, two days ahead).
+2. Forecasts for places with no monitor. When we hid 20% of monitors from the model, its forecasts at those hidden sites still beat NOAA's (8.5 vs. 11.1 µg/m³ error, one day ahead).
 3. A per-child smoke sensitivity estimate from a check-in a parent can finish in under a minute.
 [TEAM: verify with a literature search (D-6) that no published tool does all three before keeping "new" claims.]
 
@@ -64,14 +64,14 @@ AirPlan turns that forecast into advice for one child. A parent answers a six-qu
 | Forecast for | Serein | Best NOAA forecast |
 |---|---|---|
 | Tomorrow | 7.9 | 11.0 |
-| In 2 days | 9.9 | 12.3 |
-| In 3 days | 11.5 | 15.5 |
+| In 2 days | 9.7 | 12.3 |
+| In 3 days | 11.4 | 15.5 |
 
-Against EPA's official AQI forecast, one day ahead: Serein had the right AQI category on 87.8% of area-days vs. 82.3% for EPA, and warned on 66% of real "Unhealthy for Sensitive Groups" days vs. 45%, with fewer false alarms (79 vs. 109). Two days ahead it warned on 63% vs. 36%, but with more false alarms (63 vs. 38), which we report as a real tradeoff.
+Against EPA's official AQI forecast, one day ahead: Serein had the right AQI category on 87.9% of area-days vs. 82.7% for EPA, and warned on 71% of real "Unhealthy for Sensitive Groups" days vs. 46%, with fewer false alarms (81 vs. 98). Two days ahead it warned on 66% vs. 37%, but with more false alarms (54 vs. 36), which we report as a real tradeoff.
 
 [TEAM: after the final test, replace this table and paragraph with 2024-25 results, and keep the 2023 numbers only as "development".]
 
-**Impact.** In those 2023 test weeks alone, warning a day ahead, Serein caught 52 more smoky area-days than EPA's forecast, days on which a family would have had time to keep a child inside, run an air purifier and keep the inhaler close. In our AirPlan simulation of 300 children, after 100 logged days the personal model predicted symptom days better than the average-child model, most of all for very smoke-sensitive children (10% better Brier score). [TEAM: these are simulated children. Replace or add real-world evidence if a clinician pilot happens.]
+**Impact.** In those 2023 test weeks alone, warning a day ahead, Serein caught 61 more smoky area-days than EPA's forecast, days on which a family would have had time to keep a child inside, run an air purifier and keep the inhaler close. In our AirPlan simulation of 300 children, after 100 logged days the personal model predicted symptom days better than the average-child model, most of all for very smoke-sensitive children (10% better Brier score). [TEAM: these are simulated children. Replace or add real-world evidence if a clinician pilot happens.]
 
 **IP protection.** [TEAM decision needed. Facts: our code is public on GitHub. Options to discuss: (a) keep the forecasting code open so health departments can trust and audit it, and protect the name and brand (trademark search on "Serein"); (b) move the trained models and the AirPlan service to a private repository; (c) talk to a mentor about whether a provisional patent on the per-child method is worth it. Our main advantage beyond code is the validated backtest and partnerships with school districts.]
 
@@ -83,9 +83,9 @@ Against EPA's official AQI forecast, one day ahead: Serein had the right AQI cat
 
 **What the tests showed (development weeks of 2023).**
 - One day ahead, Serein's typical error was 7.9 µg/m³ vs. 11.0 for the best NOAA forecast.
-- It warned on 66% of "Unhealthy for Sensitive Groups" days vs. 45% for EPA, with fewer false alarms.
+- It warned on 71% of "Unhealthy for Sensitive Groups" days vs. 46% for EPA, with fewer false alarms.
 - With 20% of monitors hidden, it still beat NOAA at the hidden sites, so it can forecast for neighborhoods with no monitor.
-- We removed one input at a time to see what matters. Without NOAA's HRRR smoke and weather forecasts, tomorrow's error got 30% worse. Without live monitor readings, today's error got 64% worse. Two inputs we expected to help, satellite fire detections and wind direction between monitors, made no measurable difference, and we report that too.
+- We removed one input at a time to see what matters. Without NOAA's HRRR smoke and weather forecasts, tomorrow's error got 29% worse. Without live monitor readings, today's error got 66% worse. Wind direction between monitors, which we expected to help, made no difference, and satellite fire detections helped only a little (1-4%). We report both.
 
 [TEAM: final test results, 2024-25. Run once as a team. Paste the headline numbers here.]
 

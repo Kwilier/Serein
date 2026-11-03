@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -44,7 +44,8 @@ class PointPrices:
 
 def estimate_history_points(n_sensors: int, days: int, average_minutes: int = 60,
                             fields: list[str] = HISTORY_FIELDS,
-                            prices: PointPrices = PointPrices()) -> dict:
+                            prices: PointPrices | None = None) -> dict:
+    prices = prices or PointPrices()
     rows_per_sensor = days * 24 * 60 / average_minutes
     calls = n_sensors * int(np.ceil(days / prices.max_days_per_call_hourly))
     points = calls * prices.base_per_call + n_sensors * rows_per_sensor * len(fields) * prices.per_field_row
@@ -79,8 +80,8 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     while t < end:
         t1 = min(t + timedelta(days=max_days), end)
         params = {
-            "start_timestamp": int(t.replace(tzinfo=timezone.utc).timestamp()),
-            "end_timestamp": int(t1.replace(tzinfo=timezone.utc).timestamp()),
+            "start_timestamp": int(t.replace(tzinfo=UTC).timestamp()),
+            "end_timestamp": int(t1.replace(tzinfo=UTC).timestamp()),
             "average": average_minutes, "fields": ",".join(fields),
         }
         r = get(f"{API}/sensors/{sensor_index}/history", headers=_headers(), params=params)

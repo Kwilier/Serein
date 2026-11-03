@@ -33,6 +33,17 @@ def _key() -> str:
     return k
 
 
+def contiguous_runs(days) -> list[tuple[date, date]]:
+    """[(first, last), ...] for each run of consecutive days."""
+    runs: list[tuple[date, date]] = []
+    for d in sorted(set(days)):
+        if runs and (d - runs[-1][1]).days == 1:
+            runs[-1] = (runs[-1][0], d)
+        else:
+            runs.append((d, d))
+    return runs
+
+
 def download_range(start: date, end: date, region: Region, nrt: bool = False) -> pd.DataFrame:
     """Download detections for [start, end] (inclusive), cached per 5-day chunk."""
     sources = SOURCES_NRT if nrt else SOURCES_SP
@@ -111,18 +122,22 @@ def fire_features(fires: pd.DataFrame, points: pd.DataFrame, issue_time: datetim
     flat, flon, frp = (f["latitude"].to_numpy(), f["longitude"].to_numpy(),
                        f["frp"].clip(lower=0).to_numpy())
     plat, plon = points["lat"].to_numpy(), points["lon"].to_numpy()
-    for i in range(len(points)):
-        dist = haversine_km(plat[i], plon[i], flat, flon)
-        out.at[i, "fire_dist_km"] = float(min(dist.min(), 1000.0))
+    has_wind = u is not None and v is not None
+    # Blocks of points x all fires at once; ~4M distances per block keeps memory small.
+    step = max(1, 4_000_000 // max(len(f), 1))
+    for s0 in range(0, len(points), step):
+        sl = slice(s0, min(s0 + step, len(points)))
+        dist = haversine_km(plat[sl, None], plon[sl, None], flat[None], flon[None])
+        out.loc[out.index[sl], "fire_dist_km"] = np.minimum(dist.min(1), 1000.0)
         for r in (50, 100, 250):
-            out.at[i, f"frp_{r}"] = float(frp[dist <= r].sum())
-        if u is not None and v is not None and np.isfinite(u[i]) and np.isfinite(v[i]):
-            near = dist <= 250
-            if near.any():
-                # Direction smoke would travel from fire to point vs. wind direction.
-                b = bearing_rad(flat[near], flon[near], plat[i], plon[i])
-                wind_to = np.arctan2(u[i], v[i])
-                align = np.clip(np.cos(b - wind_to), 0, None)
-                out.at[i, "frp_upwind_250"] = float(
-                    (frp[near] * align / np.maximum(dist[near], 10)).sum())
+            out.loc[out.index[sl], f"frp_{r}"] = np.where(dist <= r, frp[None], 0.0).sum(1)
+        if has_wind:
+            uu, vv = u[sl], v[sl]
+            ok = np.isfinite(uu) & np.isfinite(vv)
+            # Direction smoke would travel from fire to point vs. wind direction.
+            b = bearing_rad(flat[None], flon[None], plat[sl, None], plon[sl, None])
+            wind_to = np.arctan2(np.where(ok, uu, 0), np.where(ok, vv, 0))[:, None]
+            align = np.clip(np.cos(b - wind_to), 0, None)
+            w = np.where(dist <= 250, frp[None] * align / np.maximum(dist, 10), 0.0).sum(1)
+            out.loc[out.index[sl], "frp_upwind_250"] = np.where(ok, w, 0.0)
     return out

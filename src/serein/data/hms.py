@@ -43,7 +43,7 @@ def read_day(d: date) -> gpd.GeoDataFrame | None:
         return None
     try:
         g = gpd.read_file(f"zip://{path}")
-    except Exception:
+    except Exception:  # noqa: BLE001 - unreadable file = missing day (None), not "no smoke"
         return None
     if g.empty:
         return g

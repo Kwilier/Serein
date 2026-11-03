@@ -4,6 +4,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONIOENCODING=utf-8
+mkdir -p outputs/logs  # outputs/ is git-ignored, so a fresh clone has no log folder
 run () { tag=$1; shift; uv run serein backtest --no-gbm --tag "sweep_$tag" "$@" > "outputs/logs/sweep_$tag.log" 2>&1
          echo "== $tag $*"; sed -n '/^RMSE (/,/^$/p;/^RMSE at HIDDEN/,/^$/p' "outputs/logs/sweep_$tag.log" | grep -E "RMSE|lead|smokecast|noaa_best"; }
 REG="--dropout 0.3 --weight-decay 1e-3"

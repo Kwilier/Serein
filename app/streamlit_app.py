@@ -6,6 +6,8 @@ Run:  uv run serein map --date 2024-09-06 --run west_us_dev     (makes a forecas
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -24,6 +26,12 @@ st.caption("Neighborhood wildfire-smoke forecasts with a personal plan for kids 
 
 maps = sorted((REPO_ROOT / "outputs" / "maps").glob("forecast_*.parquet"))
 if not maps:
+    # Fresh clone: fall back to the sample forecast shipped with the app.
+    maps = sorted((Path(__file__).parent / "sample").glob("forecast_*.parquet"))
+    if maps:
+        st.info("Showing the sample forecast (issued 2023-08-18). Make your own with "
+                "`uv run serein map --date YYYY-MM-DD --run <run>`.")
+if not maps:
     st.warning("No forecasts yet. Run `uv run serein map --date YYYY-MM-DD --run <run>` first.")
     st.stop()
 
@@ -41,7 +49,7 @@ with tab_map:
     import folium
     from streamlit_folium import st_folium
 
-    m = folium.Map(location=[d["lat"].mean(), d["lon"].mean()], zoom_start=5, tiles="cartodbpositron")
+    m = folium.Map(location=[d["lat"].mean(), d["lon"].mean()], zoom_start=5, tiles="OpenStreetMap")
     step = 0.125
     for _, r in d[d["kind"] == "grid"].iterrows():
         folium.Rectangle([[r.lat - step, r.lon - step], [r.lat + step, r.lon + step]],

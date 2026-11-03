@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import pickle
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -44,6 +45,7 @@ def load_artifacts(run_dir: Path):
     meta = json.loads((run_dir / "model.json").read_text())
     with open(run_dir / "artifacts.pkl", "rb") as f:
         art = pickle.load(f)
+    torch.use_deterministic_algorithms(True)
     model = SmokeCastGNN(meta["n_feat"], len(meta["leads"]), meta["hidden"], meta["layers"],
                          meta["heads"], drop=0.0)
     model.load_state_dict(torch.load(run_dir / "smokecast.pt", map_location="cpu"))
@@ -72,7 +74,25 @@ def sensor_plus_grid_graph(sensor_xy, grid_xy, k: int, max_km: float) -> Graph:
                  np.r_[gs.bearing, b], np.r_[gs.edge_attr, attr].astype(np.float32))
 
 
-def forecast_day(study: Study, day: date, run_dir: Path, with_grid: bool = True) -> pd.DataFrame:
+@dataclass
+class ForecastInputs:
+    """Everything the model sees for one issue day (shared by forecasts and explain)."""
+    model: SmokeCastGNN
+    prep: object
+    cqr: object
+    meta: dict
+    tab: pd.DataFrame
+    use: pd.DataFrame
+    X: np.ndarray
+    feat_names: list
+    wind: np.ndarray
+    base: np.ndarray
+    graph: Graph
+    leads: list
+    nodes: list
+
+
+def build_inputs(study: Study, day: date, run_dir: Path, with_grid: bool = True) -> ForecastInputs:
     model, prep, cqr, meta = load_artifacts(run_dir)
     pts = load_points(study.name).set_index("point_id")
     sensors = [n for n in meta["node_ids"] if n in pts.index]
@@ -83,7 +103,7 @@ def forecast_day(study: Study, day: date, run_dir: Path, with_grid: bool = True)
     tab["issue_date"] = day
     for c in [c for c in tab.columns if c.startswith("y_L")]:
         tab[c] = tab[c].astype(float)
-    X, _ = prep.transform(tab)
+    X, names = prep.transform(tab)
     leads = leads_of(tab)
     base = prep.base(tab, leads)
     wind = np.nan_to_num(tab[["hrrr_u10_L0", "hrrr_v10_L0"]].to_numpy(np.float32)) \
@@ -98,6 +118,14 @@ def forecast_day(study: Study, day: date, run_dir: Path, with_grid: bool = True)
         is_sensor = np.r_[np.ones(len(sensors), bool), np.zeros(len(grid), bool)]
         b_nbr = neighbor_base(gd, tab, prep, g, sources=is_sensor)[0]
         base = np.where(is_sensor[:, None], base, b_nbr).astype(np.float32)
+    return ForecastInputs(model, prep, cqr, meta, tab, use, X, names, wind, base, g, leads,
+                          sensors + grid)
+
+
+def forecast_day(study: Study, day: date, run_dir: Path, with_grid: bool = True) -> pd.DataFrame:
+    inp = build_inputs(study, day, run_dir, with_grid)
+    model, cqr, tab, use, leads = inp.model, inp.cqr, inp.tab, inp.use, inp.leads
+    X, wind, base, g = inp.X, inp.wind, inp.base, inp.graph
     t = lambda a: torch.as_tensor(a).unsqueeze(0)
     with torch.no_grad():
         q = model(t(X), t(wind), t(base), torch.as_tensor(g.src), torch.as_tensor(g.dst),

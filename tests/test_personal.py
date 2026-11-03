@@ -90,3 +90,51 @@ def test_log_joins_with_pm_and_fits():
     assert len(y) == 88  # first 2 days lack lag PM
     m = fit_child(log, pm)
     assert m.sensitivity()["or_per_10"] > 1.2
+
+
+def test_forecast_risk_counts_the_smoky_tail():
+    # Same median, wider upper tail -> higher expected risk for a sensitive child.
+    m = _fit(1.6, 120)
+    narrow = m.risk_under_forecast({0.05: 30, 0.5: 40, 0.95: 50}, 20, 20, 0.3, 0, 0)
+    wide = m.risk_under_forecast({0.05: 30, 0.5: 40, 0.95: 150}, 20, 20, 0.3, 0, 0)
+    assert wide["mean"] > narrow["mean"]
+    assert wide["hi"] > narrow["hi"]
+
+
+def test_sms_is_short_and_has_stop_and_911():
+    from serein.personal.action_plan import render_sms, sms_segments
+
+    for lang in ("en", "es"):
+        for zone, cat in (("green", 0), ("yellow", 2), ("red", 4)):
+            t = render_sms(zone, "Alexandria", "day_after", 188, cat, lang,
+                           link="serein.app/p/7Kq2")
+            assert "STOP" in t
+            assert ("911" in t) == (zone != "green")
+            assert sms_segments(t)[2] <= 3, (lang, zone, sms_segments(t))
+
+
+def test_sms_segment_counting():
+    from serein.personal.action_plan import sms_segments
+
+    assert sms_segments("a" * 160) == ("GSM-7", 160, 1)
+    assert sms_segments("a" * 161) == ("GSM-7", 161, 2)
+    assert sms_segments("ñ¿é" * 10)[0] == "GSM-7"
+    assert sms_segments("día") == ("UCS-2", 3, 1)
+    assert sms_segments("í" * 71) == ("UCS-2", 71, 2)
+    assert sms_segments("€")[1] == 2   # extension table: 2 characters
+
+
+def test_confounders_raise_risk_but_never_trigger_a_smoke_warning():
+    m = ChildModel()
+    clean = {0.05: 3, 0.5: 5, 0.95: 8}
+    plain = make_plan(m, "Sam", clean, 5, 5)
+    # Ozone raises the predicted risk ...
+    o3 = make_plan(m, "Sam", clean, 5, 5, ozone_ppb=80)
+    assert o3.risk > plain.risk
+    # ... but a clean-smoke day stays GREEN even on a hot, high-ozone, high-pollen day.
+    worst = make_plan(m, "Sam", clean, 5, 5, ozone_ppb=90, hot_day=1, high_pollen=1)
+    assert worst.zone == "green"
+    # Unknown ozone (None) is the same as the old model with no ozone term.
+    x_none = design_row(20, 10, 10, 0.3, 0, 0)
+    x_low = design_row(20, 10, 10, 0.3, 0, 0, ozone_ppb=25)
+    assert np.array_equal(x_none, x_low)

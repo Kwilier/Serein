@@ -83,6 +83,10 @@ def download_hourly_day(d: date, overwrite: bool = False) -> pd.DataFrame | None
         return None
     df = pd.concat(parts, ignore_index=True)
     df = df.drop_duplicates(subset=["site_id", "time_utc"], keep="last")
+    # A recent day with missing hours may still be filling in: don't freeze it in the
+    # cache, or later runs would skip it forever. Old gaps are permanent, so cache those.
+    if len(parts) < 24 and d >= date.today() - timedelta(days=2):
+        return df
     df.to_parquet(path, index=False)
     return df
 
@@ -196,7 +200,14 @@ def parse_date(s: str) -> date:
 
 
 __all__ = [
-    "parse_hourly_aqobs", "parse_reportingarea", "download_hourly_day",
-    "download_reportingarea_day", "load_hourly", "load_forecasts", "load_observed_area_aqi",
-    "site_table", "daterange", "parse_date",
+    "daterange",
+    "download_hourly_day",
+    "download_reportingarea_day",
+    "load_forecasts",
+    "load_hourly",
+    "load_observed_area_aqi",
+    "parse_date",
+    "parse_hourly_aqobs",
+    "parse_reportingarea",
+    "site_table",
 ]

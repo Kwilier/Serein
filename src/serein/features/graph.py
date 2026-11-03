@@ -42,7 +42,9 @@ def build_knn_graph(lat, lon, k: int = 10, max_km: float = 300.0) -> Graph:
     _, nbr = tree.query(xyz, k=kk)
     src, dst = [], []
     for i in range(len(lat)):
-        for j in np.atleast_1d(nbr[i])[1:]:
+        # Drop i itself explicitly: with co-located monitors (distance 0 ties) the
+        # tree may not return i first, and a self-edge would leak a node's own reading.
+        for j in [j for j in np.atleast_1d(nbr[i]) if j != i][:k]:
             src.append(j)
             dst.append(i)
     src, dst = np.array(src, dtype=np.int64), np.array(dst, dtype=np.int64)

@@ -95,3 +95,40 @@ def test_bootstrap_prefers_better_model():
     bad = obs + rng.normal(0, 5, 2000)
     r = bootstrap_rmse_diff(good, bad, obs, dates, n_boot=300)
     assert r["ci_hi"] < 0 and r["p_a_better"] > 0.99
+
+
+def test_knn_graph_has_no_self_edges_with_colocated_monitors():
+    # Two monitors at the exact same spot (happens in the real West network).
+    lat = [40.0, 40.0, 40.1, 40.2, 40.3]
+    lon = [-120.0, -120.0, -120.1, -120.2, -120.3]
+    g = build_knn_graph(lat, lon, k=3)
+    assert not np.any(g.src == g.dst)
+    assert np.bincount(g.dst, minlength=5).max() <= 3
+
+
+def test_training_is_repeatable_with_the_same_seed():
+    """Same seed, same data => identical forecasts (also on the GPU, where graph
+    message sums use atomics unless deterministic mode is on)."""
+    from serein.features.graph import Graph
+    from serein.features.prepare import GraphData
+    from serein.models.train import TrainConfig, Trainer
+
+    rng = np.random.default_rng(0)
+    T, N, F, L, K = 24, 60, 6, 2, 4
+    src = np.concatenate([rng.choice(np.delete(np.arange(N), i), K, replace=False)
+                          for i in range(N)])
+    g = Graph(src=src, dst=np.repeat(np.arange(N), K), dist_km=rng.uniform(5, 99, N * K),
+              bearing=rng.uniform(0, 6.28, N * K),
+              edge_attr=rng.normal(size=(N * K, 4)).astype(np.float32))
+    X = rng.normal(size=(T, N, F)).astype(np.float32)
+    Y = (2.4 + 0.5 * X[..., :L]).astype(np.float32)
+    base = np.full((T, N, L), 2.4, np.float32)
+    wind = rng.normal(size=(T, N, 2)).astype(np.float32)
+    names = [f"f{i}" for i in range(F)]
+    gd = GraphData(list(range(T)), list(range(N)), X, Y, base, wind, names, np.zeros((T, N), int))
+    outs = []
+    for _ in range(2):
+        m = Trainer(F, L, g, names, TrainConfig(epochs=3, patience=10, hidden=16, heads=2))
+        m.fit(gd, gd, log=lambda *a: None)
+        outs.append(m.predict(gd))
+    assert np.array_equal(outs[0], outs[1])

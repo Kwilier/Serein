@@ -20,35 +20,63 @@ Serein closes all three gaps:
 
 ---
 
-## Start here (new teammate guide)
+## Getting started
 
-**Just want to see the results?** You don't need to install anything. Open [docs/results/](docs/results/README.md): the full dev report, the head-to-head vs. NOAA and EPA, and every chart are there.
+Follow the steps in order. Each step says how to check that it worked before moving on.
 
-**Want to run the code?** About 15 minutes to get set up:
+### Step 1. Look at the results (no install needed)
+Open [docs/results/](docs/results/README.md). It has the full development report, the head-to-head comparison against NOAA and EPA, and every figure.
 
-1. Install [git](https://git-scm.com/downloads) and [uv](https://docs.astral.sh/uv/getting-started/installation/) (uv installs Python for you).
-2. `git clone https://github.com/htvarkali/Serein` then `cd Serein`
-3. `uv sync --all-extras` installs everything (Python 3.12, PyTorch, Streamlit...).
-4. `uv run pytest` should say all tests passed. If it does, you're set up.
-5. Try the parts that need no data: `uv run serein airplan-demo --seed 3 --language es` (a simulated child's action plan in Spanish).
+### Step 2. Install the tools
+1. Install [git](https://git-scm.com/downloads).
+2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/). uv installs the right Python version by itself.
 
-**Want to train and score models?** You need the data. `./scripts/download_all.sh` pulls 5 fire seasons of free public data. It takes about 2-3 hours, downloads roughly 150 GB but keeps only about 2.2 GB on disk (it reads just the parts of each weather file it needs). No API keys needed. A GPU (NVIDIA) makes training much faster but is not required. Then follow [Quick start](#quick-start) steps 2-4.
+Check: `git --version` and `uv --version` both print a version number.
 
-**Want to help?** Pick a task from the [TODO list](#todo), put your initials on it, and follow the [team rules](#how-to-contribute-team-rules) (branch, test, pull request). Two rules matter most:
-- **Never run the final test** (`--final`) on your own. It runs once, as a team, after the protocol is frozen. See [Finishing the proof](#finishing-the-proof-the-final-test-do-this-once).
-- **Never commit data, API keys, or any real child's health information.**
+### Step 3. Get the code and install it
+```bash
+git clone https://github.com/htvarkali/Serein
+cd Serein
+uv sync --all-extras
+```
+Check: `uv run pytest` ends with `passed` and no failures.
 
-**Not a coder? These tasks need people, not code:**
+### Step 4. Try the parts that need no data
+```bash
+uv run serein airplan-demo --seed 3 --language es     # a simulated child's action plan, in Spanish
+uv run streamlit run app/streamlit_app.py             # demo app; uses the sample forecast in app/sample/
+```
+Check: the first command prints a green and a red action plan; the second opens a map in the browser.
 
-| Task | What to do |
-|---|---|
-| E-1 | Interview school nurses, parents of kids with asthma, and a pediatrician (5+ total). Notes go in the Brief's "Opportunity" and "Validation" answers. |
-| C-7 | A native Spanish speaker reviews `src/serein/personal/messages/es.yaml`. |
-| C-8 | A doctor, nurse or respiratory therapist reviews the action-plan wording and the priors table in `docs/METHODS.md`. |
-| E-4 to E-7 | Business plan: market size, competitors, who pays, partner letters (school districts, air districts). |
-| Pitch | Film the 3-5 min video and finish the website (`website/`). |
-| Brief | Edit the draft Innovation Brief in [docs/drafts/innovation_brief.md](docs/drafts/innovation_brief.md) and fill in every `[TEAM: ...]` slot. |
-| Conrad portal | Confirm the Lean Canvas was submitted (due Oct 29) and which category we picked. |
+### Step 5 (optional). Download the data and train models
+Only needed for tasks that train or score models (most A, B and D tasks).
+- `./scripts/download_all.sh` pulls 5 fire seasons of free public data. About 2-3 hours, roughly 150 GB downloaded, about 2.2 GB kept on disk. No API keys needed.
+- An NVIDIA GPU makes training much faster but is not required.
+- Then follow [Quick start](#quick-start) steps 2-4.
+
+Check: `uv run serein backtest --seeds 1 --epochs 5 --tag smoke_test` finishes and writes `outputs/backtest/west_us_smoke_test/report.md`.
+
+### Step 6. Pick a task
+1. Open the [Task board](#task-board) and choose a row with status **Open**.
+2. Claim it: in a small commit or pull request, change that row's status to **In progress** and put your GitHub username in the Owner column. One person per task. If a row already has an owner, pick a different task or ask that owner.
+3. If the task needs a person rather than code (interviews, reviews, video, business plan), it is marked **(non-code)** in the board.
+
+### Step 7. Do the work
+1. Make a branch named after the task: `git checkout -b b8-purpleair-nodes`.
+2. Keep changes to what the task describes.
+3. Add a test in `tests/` for anything that computes a number.
+4. Before pushing, both must pass: `uv run pytest` and `uv run ruff check .`
+
+### Step 8. Finish the task
+1. Open a pull request that names the task ID in its title (for example `B-8: add PurpleAir nodes`).
+2. One other contributor reviews before merging.
+3. In the same pull request, set the row's status to **Done** and fill in the date.
+
+### Rules that apply to every task
+- **Never run the final test (`--final`) alone.** It runs once, after the protocol is frozen. See [Finishing the proof](#finishing-the-proof-the-final-test-do-this-once).
+- **Never commit data files, API keys, or any real person's health information.** `.gitignore` blocks the common cases; check `git status` before every commit anyway.
+- **Report results honestly**, including where Serein loses. Numbers in docs must come from a file in `outputs/` or `docs/results/`.
+- **Health messages need human review.** Never ship a machine translation or new medical wording without a native speaker or clinician checking it.
 
 ---
 
@@ -118,25 +146,28 @@ until the protocol is frozen (TODO D-4/D-5).
 
 | Error (RMSE, µg/m³) | Today | +1 day | +2 days | +3 days |
 |---|---|---|---|---|
-| **SmokeCast** | **4.5** | **7.9** | **9.9** | **11.5** |
+| **SmokeCast** | **4.5** | **7.9** | **9.7** | **11.4** |
 | Best NOAA forecast | 10.1 | 11.0 | 12.3 | 15.5 |
-| Same model, graph turned off | 4.9 | 8.0 | 10.3 | 12.2 |
-| **At monitors hidden from SmokeCast** (no sensor) | **7.1** | **8.5** | **10.0** | **11.5** |
+| Same model, graph turned off | 4.8 | 8.2 | 10.3 | 12.0 |
+| **At monitors hidden from SmokeCast** (no sensor) | **7.0** | **8.5** | **10.1** | **11.3** |
 | NOAA at those same hidden monitors | 10.5 | 11.1 | 11.9 | 14.1 |
 
 - Beats the best NOAA forecast at every lead (day-bootstrap 95% CIs all below zero), and
-  beats NOAA at 88% of 344 individual monitors (day 1).
-- **Warnings a day ahead:** of 248 reporting-area days that really turned orange-or-worse,
-  Serein warned on 66% vs. 45% for EPA's official forecast, with fewer false alarms
-  (79 vs. 109). Day 2: 63% vs. 36%, but more false alarms (63 vs. 38).
-- The graph matters most where there is **no sensor**: 18% lower error today and 8% on
-  day 3 vs. the same model without neighbors.
+  beats NOAA at 87% of 344 individual monitors (day 1).
+- **Warnings a day ahead:** of 244 reporting-area days that really turned orange-or-worse,
+  Serein warned on 71% vs. 46% for EPA's official forecast, with fewer false alarms
+  (81 vs. 98). Day 2: 66% vs. 37%, but more false alarms (54 vs. 36).
+- **Peaks:** on smoky days, the day-1 forecast reaches a median 80% of the true level
+  (NOAA: 31%); day 2: 56%, day 3: 31%.
+- The graph matters most where there is **no sensor**: 17% lower error today and 16% on
+  day 3 at hidden monitors vs. the same model without neighbors.
 - 90% ranges contain the truth 89-91% of the time.
 - Weak spots we report: big peaks are still under-forecast at days 2-3; day-2 warnings
   have more false alarms than EPA's.
-- **What drives the skill** (ablations): live sensors matter most for today (+64% error
-  without them), HRRR-Smoke for days 1-2 (+30% on day 1), AQM for every day. Fire
-  detections and wind-on-edges add nothing measurable (details in `docs/METHODS.md`).
+- **What drives the skill** (ablations): live sensors matter most for today (+66% error
+  without them), HRRR-Smoke for days 1-2 (+29% on day 1), AQM for every day (+7-14%).
+  Fire detections and smoke plume maps help a little (1-5% on days 1-3); wind direction
+  on graph edges adds nothing (details in `docs/METHODS.md`).
 
 Figures: `outputs/backtest/west_us_dev/`. Map: `outputs/maps/map_20230818.png`.
 
@@ -146,7 +177,7 @@ Figures: `outputs/backtest/west_us_dev/`. Map: `outputs/maps/map_20230818.png`.
 
 ```
 Serein/
-├── README.md               ← you are here (TODO list at the bottom)
+├── README.md               ← you are here (task board at the bottom)
 ├── configs/
 │   ├── west_us.yaml        ← main study: region, seasons, train/calibrate/test split
 │   └── northeast_2023.yaml ← out-of-region transfer test (June 2023 Canadian smoke)
@@ -167,7 +198,7 @@ Serein/
 │   └── cli.py              ← `serein ...` command line
 ├── scripts/                ← download_all, run_dev_suite, run_ablations, build_website ...
 ├── app/                    ← demo app: map, family plan, daily check-in
-├── website/                ← draft of the Conrad team website (static HTML)
+├── website/                ← draft of the Conrad website (static HTML)
 ├── tests/                  ← pytest; run before every push
 ├── data/                   ← local data cache, git-ignored (never commit data)
 └── outputs/                ← results + figures, git-ignored
@@ -204,7 +235,7 @@ No API keys are needed for the main study. Optional keys (NASA FIRMS, PurpleAir)
 The 2024-25 seasons have never been scored. Doing it in this order is what makes the
 result trustworthy to judges:
 
-1. Read `docs/BACKTEST_PROTOCOL.md` as a team. Change its status line to **FROZEN**.
+1. Read `docs/BACKTEST_PROTOCOL.md` together and agree on it. Change its status line to **FROZEN**.
 2. Commit and push it. The commit time is your public proof the rules came first.
 3. Run the test (about 10 min on an RTX-class GPU):
    ```bash
@@ -224,33 +255,9 @@ result trustworthy to judges:
 `--final` writes a lock file; running it again requires `--force` plus a written reason
 in the protocol's change log.
 
-## How to contribute (team rules)
-
-1. **Pick a task** from the TODO list below and put your initials next to it in a commit, e.g. `- [ ] (AT) B-4 ...`. That claims it.
-2. **Make a branch**: `git checkout -b b4-wind-edges`.
-3. **Write a test** in `tests/` for anything that computes a number.
-4. `uv run pytest` and `uv run ruff check .` must pass.
-5. **Open a pull request**. One other person reviews before merging.
-6. When merged, **tick the box** `- [x]` and add the date.
-7. Never commit data files, API keys, or any real child's health information.
-
----
-
-## Team workstreams
-
-Five people, five lanes. Each lane has an owner, but anyone can pick up any task.
-
-| Lane | Owner | Focus |
-|---|---|---|
-| **A: Data** | _name_ | Downloaders, cleaning, PurpleAir QC, the "no peeking" rule |
-| **B: SmokeCast (Model 1)** | _name_ | GNN, features, uncertainty, the neighborhood map |
-| **C: AirPlan (Model 2)** | _name_ | Personal model, medical grounding, action plans, translations |
-| **D: Proof & Science** | _name_ | Backtest protocol, metrics, figures, writing the Innovation Brief |
-| **E: Product & Pitch** | _name_ | App/demo, user interviews (school nurses, parents, doctors), business plan, video |
-
 ## Timeline
 
-Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp-content/uploads/2026/08/2026-2027-Conrad-Challenge-Student-Guide-Official.pdf), checked 2026-11-01): the Lean Canvas was due **Oct 29, 2026**; the Innovation Stage (Brief + 3-5 min video + website + $499 fee) closes **Jan 7, 2027, 11:59 pm CT**. Our internal deadline is **Jan 1, 2027**. Full requirements and the judges' scoring guide: [docs/CONRAD.md](docs/CONRAD.md).
+Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp-content/uploads/2026/08/2026-2027-Conrad-Challenge-Student-Guide-Official.pdf), checked 2026-11-01): the Lean Canvas was due **Oct 29, 2026**; the Innovation Stage (Brief + 3-5 min video + website + $499 fee) closes **Jan 7, 2027, 11:59 pm CT**. The internal target is **Jan 1, 2027**. Full requirements and the judges' scoring guide: [docs/CONRAD.md](docs/CONRAD.md).
 
 | Week of | Milestone |
 |---|---|
@@ -264,83 +271,144 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 
 ---
 
-## TODO
+## Task board
 
-Legend: `[ ]` open · `[x]` done · `(XX)` = initials of whoever claimed it · ⭐ = critical path for the headline result.
+**Status key:** **Done** = finished and merged · **In progress** = claimed, being worked on · **Open** = free to claim · **Blocked** = waiting on something outside the repo. ⭐ = on the critical path for the headline result. **(non-code)** = needs a person, not code.
+
+### Summary: what is left (updated 2026-11-02)
+
+| Area | Done | In progress | Open | Blocked |
+|---|---|---|---|---|
+| A: Data pipeline | 13 | 0 | 2 | 0 |
+| B: SmokeCast (Model 1) | 15 | 0 | 4 | 0 |
+| C: AirPlan (Model 2) | 9 | 0 | 4 | 0 |
+| D: Proof & science | 8 | 0 | 3 | 1 |
+| E: Product & pitch | 3 | 0 | 8 | 0 |
+| S: Submission (Conrad) | 2 | 0 | 9 | 0 |
+| Q: Code quality | 6 | 0 | 1 | 0 |
+
+**Most urgent open work, in order:**
+1. S-1 Confirm in the Conrad portal that the Lean Canvas was submitted (due Oct 29) and which category was chosen. If it was not submitted, the entry cannot compete.
+2. S-3 to S-6 Finish the Innovation Brief: every `[TEAM: ...]` slot in [docs/drafts/innovation_brief.md](docs/drafts/innovation_brief.md), especially questions 6-10 (market, competition, go-to-market, business model, fundraising).
+3. S-8 Website team section and contact line. S-9 the 3-5 minute video.
+4. D-4, D-5, D-6b ⭐ Freeze the protocol, then run the final test and the transfer test once.
+5. C-8 One clinician review and E-1 interviews: the strongest outside evidence a judge can see.
 
 ### A: Data pipeline
-- [x] A-1 Repo scaffold, `pyproject.toml`, uv env with CUDA PyTorch *(2026-11-01)*
-- [x] A-2 AirNow hourly PM2.5 downloader + parser (free, no key) *(2026-11-01)*
-- [x] A-3 AirNow archived **official AQI forecasts** (`reportingarea.dat`) parser, the EPA baseline *(2026-11-01)*
-- [x] A-4 NOAA HMS smoke polygons downloader + "smoke density at point" feature *(2026-11-01)*
-- [x] A-5 HRRR-Smoke `MASSDEN` + column smoke `COLMD` + weather (wind, PBL, T, RH) at sites via byte-range downloads *(2026-11-01)*
-- [x] A-6 NOAA AQM 72 h PM2.5 extraction at sites (raw + bias-corrected) *(2026-11-01)*
-- [x] A-7 Fire features (FRP within 50/100/250 km, upwind FRP). Uses **NOAA HMS fire points (no key needed)**; NASA FIRMS code also included if anyone gets a key *(2026-11-01)*
-- [x] A-8 PurpleAir client + **point-cost estimator** + EPA correction (Barkjohn 2021 + high-smoke extension) *(2026-11-01; needs key)*
-- [x] A-9 "No peeking" availability rules: what data existed at issue time *(2026-11-01)*
-- [ ] A-10 ⭐ Full download for all seasons in `configs/west_us.yaml` (EPA + HMS + HRRR + AQM). Big; run overnight
-- [x] A-11 AQM archive: v5 (to 2021-07-19, **48 h only**), v6, v7 all use the same file names; loader tries each *(2026-11-01)*
-- [ ] A-12 PurpleAir QC: A/B channel agreement, stuck sensors, indoor sensors removed, flag outliers vs. neighbors
-- [x] A-13 HRRR weather at sites: 10 m wind u/v, PBL height, RH, T2m *(2026-11-01; precipitation still TODO)*
-- [ ] A-14 Pull PurpleAir history for ~300 sensors in 2 test metros (Sacramento, Portland) after cost estimate is approved
-- [x] A-15 Data dictionary generated from the real table: `docs/DATA_DICTIONARY.md` (`scripts/make_data_dictionary.py`) *(2026-11-01)*
+| ID | Task | Status | Owner | Date |
+|---|---|---|---|---|
+| A-1 | Repo scaffold, `pyproject.toml`, uv env with CUDA PyTorch | Done | Aadi-Tiwari | 2026-11-01 |
+| A-2 | AirNow hourly PM2.5 downloader + parser (free, no key) | Done | Aadi-Tiwari | 2026-11-01 |
+| A-3 | AirNow archived **official AQI forecasts** (`reportingarea.dat`) parser: the EPA baseline | Done | Aadi-Tiwari | 2026-11-01 |
+| A-4 | NOAA HMS smoke polygons downloader + "smoke density at point" feature | Done | Aadi-Tiwari | 2026-11-01 |
+| A-5 | HRRR-Smoke `MASSDEN`, column smoke `COLMD` and weather at sites via byte-range downloads | Done | Aadi-Tiwari | 2026-11-01 |
+| A-6 | NOAA AQM 72 h PM2.5 at sites (raw + bias-corrected) | Done | Aadi-Tiwari | 2026-11-01 |
+| A-7 | Fire features from NOAA HMS fire points (no key); NASA FIRMS code included for anyone with a key | Done | Aadi-Tiwari | 2026-11-01 |
+| A-8 | PurpleAir client, point-cost estimator, EPA correction (Barkjohn 2021 + high-smoke extension); needs a key to use | Done | Aadi-Tiwari | 2026-11-01 |
+| A-9 | "No peeking" rules: only data that existed at issue time | Done | Aadi-Tiwari | 2026-11-01 |
+| A-10 ⭐ | Full download of all 5 seasons (EPA, HMS, HRRR, AQM); about 2.2 GB on disk | Done | Aadi-Tiwari | 2026-11-01 |
+| A-11 | AQM archive v5/v6/v7 loader (v5 to 2021-07-19 is 48 h only) | Done | Aadi-Tiwari | 2026-11-01 |
+| A-12 | PurpleAir QC: A/B channel agreement, stuck sensors, indoor sensors removed, outliers vs. neighbors | Open | | |
+| A-13 | HRRR weather at sites: 10 m wind, PBL height, RH, 2 m temperature (precipitation not yet added) | Done | Aadi-Tiwari | 2026-11-01 |
+| A-14 | PurpleAir history for ~300 sensors in 2 test metros (Sacramento, Portland), after the cost estimate is approved | Open | | |
+| A-15 | Data dictionary generated from the real table: `docs/DATA_DICTIONARY.md` | Done | Aadi-Tiwari | 2026-11-01 |
 
 ### B: SmokeCast (Model 1)
-- [x] B-1 Baselines: persistence, climatology, raw HRRR-Smoke + background, raw/BC AQM, EPA forecast *(2026-11-01)*
-- [x] B-2 Sensor graph builder (k-nearest neighbors, distance + bearing edge features) *(2026-11-01)*
-- [x] B-3 GNN v0: wind-aware message passing, residual on top of AQM/HRRR, quantile outputs, lead days 0-3 *(2026-11-01)*
-- [x] B-4 Conformal calibration so "90% range" really contains the truth ~90% of the time *(2026-11-01)*
-- [x] B-5 Gradient-boosting baseline (no graph) to prove the graph helps (ablation) *(2026-11-01)*
-- [x] B-6 ⭐ Trained on 2021-22, tuned on 2023 dev weeks only; settings frozen in BACKTEST_PROTOCOL §6b *(2026-11-01)*
-- [x] B-7 Node masking during training (hides readings + site history of 15% of sensors) *(2026-11-01)*
-- [x] B-7b Leave-sites-out test (`--holdout-sites 0.2`): graph cuts error at hidden monitors 18% today, 9% day 1 vs. no-graph *(2026-11-01)*
-- [ ] B-8 Add PurpleAir nodes; measure how much the low-cost sensors help (ablation)
-- [x] B-9a Map v0: `serein map --date ...` runs the GNN on a 0.25° grid of virtual sensors *(2026-11-01)*
-- [ ] B-9b Finer grid (1-2 km) around target metros + census-tract averages
-- [x] B-10a Graph vs. no-graph + settings sweep (`scripts/sweep_graph.sh`) *(2026-11-01)*
-- [x] B-10b Input ablations (`scripts/run_ablations.sh`): sensors, HRRR, AQM matter; fires and wind-on-edges don't (table in `docs/METHODS.md`) *(2026-11-01)*
-- [ ] B-16 Ideas from ablations: smoke-transport features that HRRR lacks (e.g. plume age, fire growth rate), or drop fire inputs to simplify
-- [ ] B-11 Explainability: which neighbors and features drove a forecast (attention weights, SHAP for GBM)
-- [x] B-12 5-seed ensemble (`--seeds 5`, now default) *(2026-11-01)*
-- [x] B-13 Smoke days weighted 6x in training: day-1 forecasts now reach ~72% of the true peak (was 59%) *(2026-11-01)*
-- [x] B-14 Places without a sensor now get a base forecast from neighbors' readings (was generic clean air); hidden sensors practice this in training *(2026-11-01)*
-- [ ] B-15 Peaks still under-predicted at days 2-3. Options: add 2020 (record fires) as training data. Checked 2026-11-01: 2020 HRRR files have NO smoke fields (HRRR-Smoke started Dec 2020), but AQMv5 + HRRR weather exist, and the model handles missing inputs. Or try a heavy-tailed output
+| ID | Task | Status | Owner | Date |
+|---|---|---|---|---|
+| B-1 | Baselines: persistence, climatology, raw HRRR-Smoke, raw and bias-corrected AQM, EPA forecast | Done | Aadi-Tiwari | 2026-11-01 |
+| B-2 | Sensor graph builder (k nearest neighbors, distance + bearing edge features) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-3 | GNN v0: message passing, residual on top of AQM/HRRR, quantile outputs, lead days 0-3 | Done | Aadi-Tiwari | 2026-11-01 |
+| B-4 | Conformal calibration so the "90% range" contains the truth about 90% of the time | Done | Aadi-Tiwari | 2026-11-01 |
+| B-5 | Gradient-boosting baseline with no graph, to test whether the graph helps | Done | Aadi-Tiwari | 2026-11-01 |
+| B-6 ⭐ | Trained on 2021-22, tuned on 2023 dev weeks only; settings frozen in BACKTEST_PROTOCOL §6b | Done | Aadi-Tiwari | 2026-11-01 |
+| B-7 | Node masking in training (hides readings and site history of 15% of sensors) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-7b | Leave-sites-out test (`--holdout-sites 0.2`) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-8 | Add PurpleAir nodes; measure how much low-cost sensors help (needs A-12, A-14) | Open | | |
+| B-9a | Map v0: `serein map --date ...` on a 0.25° grid | Done | Aadi-Tiwari | 2026-11-01 |
+| B-9b | Finer grid (1-2 km) around target metros + census-tract averages | Open | | |
+| B-10a | Graph vs. no-graph + settings sweep (`scripts/sweep_graph.sh`) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-10b | Input ablations: sensors, HRRR, AQM matter most; fires and plumes help a little; wind-on-edges doesn't (table in `docs/METHODS.md`) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-11 | Explainability: `serein explain` shows which input groups moved a forecast (integrated gradients) and which neighbors the graph listened to (`docs/METHODS.md`) | Done | Aadi-Tiwari | 2026-11-02 |
+| B-12 | 5-seed ensemble (`--seeds 5`, now the default) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-13 | Smoke days weighted 6x in training: day-1 forecasts reach a median 80% of the true peak (NOAA: 31%) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-14 | Places without a sensor get a base forecast from neighbors' readings | Done | Aadi-Tiwari | 2026-11-01 |
+| B-15 | Peaks still under-predicted at days 2-3. Options: add 2020 as training data (no HRRR smoke fields that year, but AQMv5 and weather exist), or a heavy-tailed output | Open | | |
+| B-16 | Smoke-transport features HRRR lacks (plume age, fire growth rate), or drop fire inputs to simplify | Open | | |
 
 ### C: AirPlan (Model 2)
-- [x] C-1 Hierarchical Bayesian logistic model (population prior → per-child posterior, Laplace update) *(2026-11-01)*
-- [x] C-2 Synthetic cohort simulator: shows the model recovers a child's true sensitivity *(2026-11-01)*
-- [x] C-3 Action-plan engine: green/yellow/red zones from personal risk, based on CDC/EPA/AAP guidance *(2026-11-01)*
-- [x] C-4 Message templates: English + Spanish draft *(2026-11-01; Spanish needs native-speaker review)*
-- [x] C-5 Literature review: priors now cite Sugrue 2026 (GeoHealth), Khetsuriani 2007 & Williams 2011 (JACI), CDC ACBS; see `docs/METHODS.md#priors` *(2026-11-01)*
-- [ ] C-5b Have a clinician sanity-check the priors (part of C-8)
-- [x] C-6 ⭐ Simulation study: 300 synthetic children, literature priors; personal model beats one-size-fits-all from ~2 weeks of logs, +5-10% by day 100 (`outputs/airplan/`) *(2026-11-01)*
-- [x] C-7a Spanish terminology aligned with EPA's official Spanish AQI names ("Insalubre para grupos sensibles"...) and CDC asthma terms *(2026-11-01)*
-- [ ] C-7 Translations reviewed by **native speakers** (Spanish first; then Chinese, Vietnamese, Tagalog, Hindi/Punjabi by target city census). A human must do this
-- [ ] C-8 Review action-plan wording with a pediatric pulmonologist / asthma educator / school nurse. Record their feedback
-- [x] C-9 Daily check-in: 6 taps (`serein/personal/log.py`), "Daily check-in" tab in the app, stays on device *(2026-11-01)*
-- [ ] C-10 Add confounders: colds/viruses, pollen, temperature, ozone
+| ID | Task | Status | Owner | Date |
+|---|---|---|---|---|
+| C-1 | Hierarchical Bayesian logistic model (population prior to per-child posterior) | Done | Aadi-Tiwari | 2026-11-01 |
+| C-2 | Synthetic cohort simulator: checks the model recovers a child's true sensitivity | Done | Aadi-Tiwari | 2026-11-01 |
+| C-3 | Action-plan engine: green/yellow/red zones from personal risk, based on CDC/EPA/AAP guidance | Done | Aadi-Tiwari | 2026-11-01 |
+| C-4 | Message templates: English + Spanish draft | Done | Aadi-Tiwari | 2026-11-01 |
+| C-5 | Literature review: priors cite Sugrue 2026, Khetsuriani 2007, Williams 2011, CDC ACBS (`docs/METHODS.md`) | Done | Aadi-Tiwari | 2026-11-01 |
+| C-6 ⭐ | Simulation study: 300 synthetic children; personal model beats one-size-fits-all from ~2 weeks of logs | Done | Aadi-Tiwari | 2026-11-01 |
+| C-7a | Spanish wording aligned with EPA's official Spanish AQI names and CDC asthma terms | Done | Aadi-Tiwari | 2026-11-01 |
+| C-7 | **(non-code)** Native-speaker review of `src/serein/personal/messages/es.yaml`; later Chinese, Vietnamese, Tagalog, Hindi/Punjabi | Open | | |
+| C-8 | **(non-code)** Pediatric pulmonologist, asthma educator or school nurse reviews action-plan wording and the priors table (includes C-5b). Record their feedback | Open | | |
+| C-9 | Daily check-in: 6 taps (`serein/personal/log.py`) + "Daily check-in" tab in the app; kept only in the browser session | Done | Aadi-Tiwari | 2026-11-01 |
+| C-10 | Confounders in the child model: ozone (prior from Strickland 2010), hot day and high-pollen day (wide "no effect" priors), next to the existing cold/virus term. They never trigger a smoke warning on their own (`docs/METHODS.md#priors`) | Done | Aadi-Tiwari | 2026-11-02 |
+| C-10b | Feed real values into plans: AQM ozone and HRRR max temperature from the forecast; a "high pollen today?" box in the app check-in | Open | | |
+| C-11 | More languages in `messages/` (only after C-7 sets the review process) | Open | | |
 
-### D: Proof & Science
-- [x] D-1 Metrics: RMSE, MAE, bias, AQI-category accuracy, USG+ hit rate / false alarms (CSI), CRPS, interval coverage *(2026-11-01)*
-- [x] D-2 Backtest runner with strict train / calibrate / test split by season; `--final` lock file *(2026-11-01)*
-- [x] D-2b Warning rule: warn when P(≥35.5) beats a cut-off tuned on calibration weeks *(2026-11-01)*
-- [ ] D-3 PurpleAir research access: draft ready in `docs/drafts/purpleair_data_request.md` (NOT sent; a team member decides whether to send). No free route found: EPA's `AirNowWildfire.csv` only has ~50 temporary smoke monitors
-- [ ] D-4 ⭐ Write and **freeze** `docs/BACKTEST_PROTOCOL.md` before looking at test seasons (commit hash = timestamp)
-- [ ] D-5 ⭐ Run final test once; bootstrap 95% CIs by day; Diebold-Mariano test vs. each baseline
-- [x] D-6a Northeast June 2023 transfer test ready: data downloaded, `serein transfer` command built and checked on West data *(2026-11-01)*
-- [ ] D-6b ⭐ Run the transfer test ONCE, right after the final test: `uv run serein build-table --config configs/northeast_2023.yaml --split test` then `uv run serein transfer --run west_us_final`
-- [x] D-7 Figures: error vs. lead, warnings vs. EPA, case study, calibration by smoke level, map of improvement by site, peak report (`python -m serein.eval.figures <run>`) *(2026-11-01)*
-- [x] D-8 Impact calculator: smoky days warned a day ahead, Serein vs. EPA (`python -m serein.eval.impact <run>`) *(2026-11-01)*
+### D: Proof & science
+| ID | Task | Status | Owner | Date |
+|---|---|---|---|---|
+| D-1 | Metrics: RMSE, MAE, bias, AQI-category accuracy, warning hit rate / false alarms (CSI), CRPS, interval coverage | Done | Aadi-Tiwari | 2026-11-01 |
+| D-2 | Backtest runner with strict season split and a `--final` lock file | Done | Aadi-Tiwari | 2026-11-01 |
+| D-2b | Warning rule: warn when P(PM2.5 ≥ 35.5) beats a cut-off tuned on calibration weeks | Done | Aadi-Tiwari | 2026-11-01 |
+| D-3 | **(non-code)** PurpleAir research access: draft in `docs/drafts/purpleair_data_request.md`, not sent; someone must decide whether to send it | Blocked | | |
+| D-4 ⭐ | Read and **freeze** `docs/BACKTEST_PROTOCOL.md` before scoring the test seasons (the commit time is the proof) | Open | | |
+| D-5 ⭐ | Run the final test once (`--final`), with day-bootstrap 95% CIs and a Diebold-Mariano test vs. each baseline | Open | | |
+| D-6a | Northeast June 2023 transfer test prepared: data downloaded, `serein transfer` built | Done | Aadi-Tiwari | 2026-11-01 |
+| D-6b ⭐ | Run the transfer test once, right after D-5 | Open | | |
+| D-7 | Figures: error vs. lead, warnings vs. EPA, case study, calibration, improvement map, peak report | Done | Aadi-Tiwari | 2026-11-01 |
+| D-8 | Impact calculator: smoky days warned a day ahead, Serein vs. EPA | Done | Aadi-Tiwari | 2026-11-01 |
+| D-9 | Results snapshot in `docs/results/` so results can be read without the data download | Done | Aadi-Tiwari | 2026-11-01 |
+| D-10 | Independent rubric-based review of the whole entry; fixes applied to README and website wording | Done | Aadi-Tiwari | 2026-11-01 |
 
-### E: Product & Pitch
-- [ ] E-1 Interviews: 5+ parents of kids with asthma, 2+ school nurses, 1+ pediatric doctor. Notes in `docs/interviews/` (no names)
-- [x] E-2 Demo app v0 (`uv run streamlit run app/streamlit_app.py`): map + family plan *(2026-11-01)*
-- [ ] E-2b Polish the app with feedback from interviews (E-1)
-- [ ] E-3 SMS/WhatsApp message mockups in 3 languages
-- [ ] E-4 Business model: free for families; paid for school districts / health systems / insurers (Medicaid asthma programs)
-- [ ] E-5 Competitor table: AirNow, PurpleAir map, IQAir, Apple/Google weather AQI, Smoke Sense (EPA). What only Serein does
-- [ ] E-6 Lean canvas → Innovation Brief, business plan, 3-min pitch video
-- [ ] E-7 Partner letter(s) of support (school district, local air district, asthma nonprofit)
+### E: Product & pitch
+| ID | Task | Status | Owner | Date |
+|---|---|---|---|---|
+| E-1 | **(non-code)** Interviews: 5+ parents of children with asthma, 2+ school nurses, 1+ pediatric doctor. Notes in `docs/interviews/` (no names) | Open | | |
+| E-2 | Demo app v0 (`uv run streamlit run app/streamlit_app.py`): map, family plan, check-in | Done | Aadi-Tiwari | 2026-11-01 |
+| E-2b | Polish the app using interview feedback (needs E-1) | Open | | |
+| E-2c | Sample forecast shipped in `app/sample/` so the app works without the data download | Done | Aadi-Tiwari | 2026-11-01 |
+| E-3 | SMS and WhatsApp mockups in English and Spanish, made from the real code, with SMS part counts for pricing ([docs/mockups/messages.md](docs/mockups/messages.md)) | Done | Aadi-Tiwari | 2026-11-02 |
+| E-3b | Third language for the mockups (only after C-7 sets the review process; see C-11) | Open | | |
+| E-4 | **(non-code)** Business model: free for families; who pays (school districts, health plans, air districts), with prices and sources | Open | | |
+| E-5 | **(non-code)** Competitor table: verify every row in the Brief draft (AirNow, PurpleAir, IQAir, Apple/Google, Propeller Health, EPA Smoke Sense, published research models) | Open | | |
+| E-6 | **(non-code)** Business plan and pitch from the Lean Canvas | Open | | |
+| E-7 | **(non-code)** Letters of support (school district, air district, asthma nonprofit) | Open | | |
+| E-8 | **(non-code)** IP decision: keep code open and protect the name, or move models private; trademark search on "Serein" | Open | | |
+
+### S: Submission (Conrad Innovation Stage, due 2027-01-07, internal target 2027-01-01)
+| ID | Task | Status | Owner | Date |
+|---|---|---|---|---|
+| S-1 | **(non-code)** Confirm the Lean Canvas was submitted on Oct 29 and which category was chosen | Open | | |
+| S-2 | Brief first draft with all 10 questions and dev numbers: [docs/drafts/innovation_brief.md](docs/drafts/innovation_brief.md) | Done | Aadi-Tiwari | 2026-11-01 |
+| S-3 | **(non-code)** Brief Q2 Team: names, grades, roles, advisor | Open | | |
+| S-4 | **(non-code)** Brief Q3 and Q5: add interview findings (E-1) and expert feedback (C-8) | Open | | |
+| S-5 | **(non-code)** Brief Q6-Q10: market, competition, go-to-market, business model, fundraising (E-4 to E-7) | Open | | |
+| S-6 | Brief Q4 and Q5: replace dev numbers with final test numbers after D-5 | Open | | |
+| S-7 | Draft website (`website/index.html`) with results, figures, safety section | Done | Aadi-Tiwari | 2026-11-01 |
+| S-8 | **(non-code)** Website: team section, contact line, logo and colors; publish at a direct link | Open | | |
+| S-9 | **(non-code)** 3-5 minute video: the problem, the app map, the backtest chart, a plan being generated. YouTube/Vimeo link + MP4 under 800 MB | Open | | |
+| S-10 | **(non-code)** Reference list and up to 2 attachments (backtest figure, map or app screenshot) | Open | | |
+| S-11 | **(non-code)** Pay the $499 fee or apply for financial aid; submit everything in the portal | Open | | |
+
+### Q: Code quality
+| ID | Task | Status | Owner | Date |
+|---|---|---|---|---|
+| Q-1 | Tests (39) and lint pass; fresh-clone install checked | Done | Aadi-Tiwari | 2026-11-02 |
+| Q-2 | Fix: `.gitignore` rule for `data/` also hid the code folder `src/serein/data/` | Done | Aadi-Tiwari | 2026-11-01 |
+| Q-3 | Full code review of `src/`, `app/`, `scripts/`: 14 bugs fixed (site-history leak through `hrrr_pm`, graph self-edges, EPA area matching across states, model-run timing check, fire-data fallback, AQM grid change, AirPlan line search and forecast tails, time zones near borders, partial AirNow days, script log folders, PurpleAir data path), regression tests added, dev suite rerun | Done | Aadi-Tiwari | 2026-11-01 |
+| Q-5 | Fix: `python -m serein.eval.figures` crashed before 3 figures and the peak report; the dev suite now reports figure, map and impact failures instead of hiding them | Done | Aadi-Tiwari | 2026-11-01 |
+| Q-4 | Choose a license (MIT suggested for code) and add `LICENSE` | Open | | |
+| Q-6 | Speed: `CQR.apply`, the GBM neighbor features, `prob_exceed` and the fire features are vectorized (tests check they match the old loops); `download firms` fetches only season days | Done | Aadi-Tiwari | 2026-11-02 |
+| Q-7 ⭐ | Repeatable training: same seed now gives the identical model on the GPU (two runs of the old code moved the day-2 warning rate from 70% to 63%). Dev results rerun on this code. Reports now say "+ uncommitted changes" when the code differs from the commit, and `--final` refuses to run on uncommitted code | Done | Aadi-Tiwari | 2026-11-02 |
 
 ---
 
@@ -353,4 +421,4 @@ Legend: `[ ]` open · `[x]` done · `(XX)` = initials of whoever claimed it · �
 
 ## License
 
-TBD by the team (MIT suggested for code). Data sources keep their own terms.
+To be decided (MIT suggested for code; task Q-4). Data sources keep their own terms.

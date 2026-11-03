@@ -135,8 +135,6 @@ def make_all(run: Path):
     peak_report(run).to_csv(run / "peak_report.csv", index=False)
 
 
-if __name__ == "__main__":
-    make_all(Path(sys.argv[1]))
 
 
 # ----------------------------------------------------------------- diagnostics
@@ -236,3 +234,7 @@ def improvement_map(run: Path, lead: int = 1, out: Path | None = None):
     fig.savefig(out or run / f"fig_improvement_map_L{lead}.png", dpi=170)
     plt.close(fig)
     return g
+
+
+if __name__ == "__main__":
+    make_all(Path(sys.argv[1]))

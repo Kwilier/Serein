@@ -27,3 +27,6 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+
+# Small sample forecast so the demo app works without the data download
+!app/sample/*.parquet

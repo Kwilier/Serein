@@ -20,12 +20,15 @@ LOG_PREFIXES = ("obs_last", "obs_max", "obs_prev", "hrrr_smoke_", "aqm_", "frp_"
                 "hrrr_colmd", "hrrr_pbl")
 OBS_PREFIX = "obs_"  # columns hidden during node masking
 SITE_HISTORY = ("site_clim", "site_bg")  # also unknown at places with no sensor
+# Derived from site_bg (the site's own clean-air history), so it leaks that history
+# unless it is hidden wherever site_bg is hidden.
+SITE_DERIVED_PREFIX = "hrrr_pm_L"
 
 
 def is_sensor_feature(name: str) -> bool:
     """Features that only exist where there is a sensor (hidden by node masking)."""
     base = name.removesuffix("__missing")
-    return base.startswith(OBS_PREFIX) or base in SITE_HISTORY
+    return base.startswith((OBS_PREFIX, SITE_DERIVED_PREFIX)) or base in SITE_HISTORY
 
 
 def target_cols(df: pd.DataFrame) -> list[str]:
@@ -74,7 +77,8 @@ class Prep:
                              and not (self.exclude and c.startswith(tuple(self.exclude)))]
         if self.exclude and any(e.startswith("obs_") for e in self.exclude):
             # "No sensors": hide readings AND the site history learned from them.
-            self.feature_cols = [c for c in self.feature_cols if c not in SITE_HISTORY]
+            self.feature_cols = [c for c in self.feature_cols if c not in SITE_HISTORY
+                                 and not c.startswith(SITE_DERIVED_PREFIX)]
         self.mask_cols = []
         for c in self.feature_cols:
             v = _transform(c, t[c])

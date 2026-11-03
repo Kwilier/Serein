@@ -55,10 +55,11 @@ class CQR:
 
     def apply(self, lo, hi, median):
         lo2, hi2 = lo.copy(), hi.copy()
+        n_groups = len(self.bins) + 1
         for lead in range(lo.shape[1]):
-            g = self.group(median[:, lead])
-            q = np.array([self.qhat.get((lead, int(k)), self.qhat.get((lead, -1), 0.0))
-                          for k in g])
+            pooled = self.qhat.get((lead, -1), 0.0)
+            table = np.array([self.qhat.get((lead, k), pooled) for k in range(n_groups)])
+            q = table[self.group(median[:, lead])]
             lo2[:, lead] = lo[:, lead] - q
             hi2[:, lead] = hi[:, lead] + q
         return lo2, hi2

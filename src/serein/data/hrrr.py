@@ -100,7 +100,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
         return pd.read_parquet(out_path)
 
     jobs = []
-    for fhr in range(0, max_fhr + 1):
+    for fhr in range(max_fhr + 1):
         wanted = []
         if fhr % smoke_every == 0:
             wanted.append(SMOKE)

@@ -64,10 +64,10 @@ def _decode(blob: bytes, with_grid: bool):
                 lon = np.where(lon > 180, lon - 360, lon)
                 grid = (lat, lon)
 
-            def s(key):
+            def s(key, h=h):
                 try:
                     return eccodes.codes_get_string(h, key)
-                except Exception:
+                except Exception:  # noqa: BLE001 - missing key just means blank
                     return ""
 
             fields.append(GribField(

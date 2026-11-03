@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 from serein.config import REPO_ROOT
-from serein.personal.model import ChildModel, PopulationPrior, design_row, sigmoid
+from serein.personal.model import FEATURES, ChildModel, PopulationPrior, design_row, sigmoid
 
 
 # ------------------------------------------------------------------ smoke season
@@ -45,6 +45,10 @@ class SimChild:
     outdoor_mean: float
     adherence: float
     kind: str
+
+    def __post_init__(self):
+        # Coefficients not given (e.g. ozone, heat, pollen) mean "no effect".
+        self.beta = np.r_[self.beta, np.zeros(len(FEATURES) - len(self.beta))]
 
 
 def simulate_children(n: int, seed: int = 0) -> list[SimChild]:

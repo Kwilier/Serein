@@ -49,3 +49,14 @@ zones:
 
 emergency: "BUSQUE AYUDA DE INMEDIATO (llame al 911) si a {name} le cuesta respirar o hablar, se le ponen los labios o uñas azules o grises, o el inhalador de alivio rápido no le ayuda."
 disclaimer: "Serein da pronósticos, no consejos médicos. Siga siempre el plan de acción para el asma que le dio el médico de su hijo/a."
+
+# Versión corta para mensaje de texto (SMS). Los acentos (á, í, ó, ú) obligan a usar
+# la codificación UCS-2, con partes de 67 caracteres: el mensaje cuesta más partes.
+# Decisión pendiente para la revisión C-7: ¿quitar acentos en SMS o no?
+sms:
+  green: "Serein: VERDE para {name} {day}. Humo de unos {pm} ug/m3 ({category}). Todo normal; lleve el inhalador de rescate como siempre. Plan: {link}"
+  yellow: "Serein: AMARILLO para {name} {day}. Humo de unos {pm} ug/m3 ({category}). Que {name} lleve su inhalador de rescate; actividades bajo techo; ventanas cerradas. Plan: {link}"
+  red: "Serein: ROJO para {name} {day}. Humo de unos {pm} ug/m3 ({category}). Quédense adentro con ventanas cerradas, sin ejercicio afuera; sigan el plan de asma. Plan: {link}"
+  emergency: "¿Le cuesta respirar o hablar, o tiene los labios azules? Llame al 911."
+  opt_out: "Responda STOP para cancelar."
+

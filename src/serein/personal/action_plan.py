@@ -75,13 +75,16 @@ def load_messages(language: str) -> dict:
 
 
 def render(zone: str, reason: str, child_name: str, day_label: str, pm_median: float,
-           pm_hi: float, risk: float, category_idx: int, language: str = "en") -> str:
+           pm_hi: float, risk: float, category_idx: int, language: str = "en",
+           style: str = "plain") -> str:
+    """Full plan. style="whatsapp" bolds the title with *...* (WhatsApp markup)."""
     msgs = load_messages(language)
     day_label = msgs.get("day_labels", {}).get(day_label, day_label)
     z = msgs["zones"][zone]
     cat = msgs["categories"][CATEGORIES[category_idx]]
+    title = z["title"].format(name=child_name, day=day_label)
     lines = [
-        z["title"].format(name=child_name, day=day_label),
+        f"*{title}*" if style == "whatsapp" else title,
         msgs["forecast_line"].format(pm=round(pm_median), pm_hi=round(pm_hi), category=cat),
         msgs["risk_line"].format(risk=round(100 * risk), name=child_name, day=day_label),
     ]
@@ -93,14 +96,51 @@ def render(zone: str, reason: str, child_name: str, day_label: str, pm_median: f
     return "\n".join(lines)
 
 
+# GSM-7 basic character set (3GPP TS 23.038). Anything else forces UCS-2.
+_GSM7 = set("@£$¥èéùìòÇ\nØø\rÅå"
+            "Δ_ΦΓΛΩΠΨΣΘΞÆæßÉ"
+            " !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "ÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà")
+_GSM7_EXT = set("^{}\\[~]|€")  # each costs 2 characters
+
+
+def sms_segments(text: str) -> tuple[str, int, int]:
+    """(encoding, length in that encoding, number of SMS parts the carrier bills)."""
+    if all(c in _GSM7 or c in _GSM7_EXT for c in text):
+        n = sum(2 if c in _GSM7_EXT else 1 for c in text)
+        return "GSM-7", n, 1 if n <= 160 else -(-n // 153)
+    n = sum(2 if ord(c) > 0xFFFF else 1 for c in text)
+    return "UCS-2", n, 1 if n <= 70 else -(-n // 67)
+
+
+def render_sms(zone: str, child_name: str, day_label: str, pm_median: float,
+               category_idx: int, language: str = "en", link: str = "[link]") -> str:
+    """Short text-message version of the plan; the link opens the full plan."""
+    msgs = load_messages(language)
+    day_label = msgs.get("day_labels", {}).get(day_label, day_label)
+    sms = msgs["sms"]
+    cat = msgs["categories"][CATEGORIES[category_idx]]
+    parts = [sms[zone].format(name=child_name, day=day_label, pm=round(pm_median),
+                              category=cat, link=link)]
+    if zone != "green":
+        parts.append(sms["emergency"])
+    parts.append(sms["opt_out"])
+    return " ".join(parts)
+
+
 def make_plan(child_model, child_name: str, pm_quantiles: dict, pm_lag1: float,
               pm_lag2: float, outdoor_frac: float = 0.3, cold: int = 0, missed: int = 0,
               day_label: str = "tomorrow", on: date | None = None,
-              language: str = "en") -> Plan:
-    r = child_model.risk_under_forecast(pm_quantiles, pm_lag1, pm_lag2, outdoor_frac, cold, missed)
-    # Same child, same day, clean air (fixed seed => paired Monte Carlo draws).
+              language: str = "en", ozone_ppb=None, hot_day: int = 0,
+              high_pollen: int = 0) -> Plan:
+    other = {"ozone_ppb": ozone_ppb, "hot_day": hot_day, "high_pollen": high_pollen}
+    r = child_model.risk_under_forecast(pm_quantiles, pm_lag1, pm_lag2, outdoor_frac, cold,
+                                        missed, **other)
+    # Same child, same day, clean air (fixed seed => paired Monte Carlo draws). Ozone,
+    # heat and pollen stay as forecast: only the smoke changes, so a hot or pollen-heavy
+    # day alone never triggers a smoke warning.
     base = child_model.risk_under_forecast({0.05: 5.0, 0.5: 5.0, 0.95: 5.0}, 5.0, 5.0,
-                                           outdoor_frac, cold, missed)
+                                           outdoor_frac, cold, missed, **other)
     qs = sorted(pm_quantiles)
     med = float(np.interp(0.5, qs, [pm_quantiles[q] for q in qs]))
     hi = float(pm_quantiles[qs[-1]])

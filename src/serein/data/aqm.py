@@ -60,7 +60,10 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
     if blob is None:
         return None
     fields, grid = decode_messages(blob, with_grid=_GRID is None)
-    if grid is not None and (_GRID is None or len(grid[0]) != len(_GRID[0])):
+    if grid is None and fields and len(fields[0].values) != len(_GRID[0]):
+        # Grid changed (AQM version switch): decode again to read the new grid.
+        fields, grid = decode_messages(blob, with_grid=True)
+    if grid is not None:
         _GRID = grid
     index = PointIndex(f"aqm{len(_GRID[0])}", _GRID[0], _GRID[1],
                        points["lat"].to_numpy(), points["lon"].to_numpy(), max_km=10.0)
