@@ -35,6 +35,17 @@ from serein.personal.model import FEATURES, ChildModel, design_row
 OUTDOOR_FRAC = {0: 0.1, 1: 0.3, 2: 0.6}
 
 
+def _loaded_day(value) -> date:
+    if isinstance(value, str):
+        try:
+            value = date.fromisoformat(value)
+        except ValueError as exc:
+            raise ValueError("check-in day must be a calendar date or ISO date string") from exc
+    if not isinstance(value, date) or isinstance(value, datetime):
+        raise TypeError("check-in day must be a calendar date or ISO date string")
+    return value
+
+
 @dataclass
 class CheckIn:
     day: date
@@ -88,8 +99,7 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
     X, y = [], []
     if not log.empty:
         log = log.copy()
-        log["day"] = log["day"].map(
-            lambda day: date.fromisoformat(day) if isinstance(day, str) else day)
+        log["day"] = log["day"].map(_loaded_day)
         log = log.drop_duplicates("day", keep="last")
         for column in ("cold", "missed_controller"):
             if not log[column].map(lambda value: isinstance(value, (bool, np.bool_))).all():

@@ -1,10 +1,24 @@
-from datetime import date
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
+
+
+@pytest.mark.parametrize("value", [
+    None, np.nan, pd.NaT, 20261104, True, datetime(2026, 11, 4),
+    pd.Timestamp("2026-11-04"), "2026-11-04T12:00:00", "2026-02-30", "",
+])
+def test_loaded_checkins_reject_invalid_dates_before_pm_lookup(value):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log["day"] = pd.Series([value], dtype=object)
+    before = log.copy(deep=True)
+    error = ValueError if isinstance(value, str) else TypeError
+    with pytest.raises(error, match="check-in day"):
+        model_rows(log, {})
+    pd.testing.assert_frame_equal(log, before)
 
 
 @pytest.mark.parametrize("value", [True, np.bool_(False), 1.0, -1, 3, "1", None, np.nan])
