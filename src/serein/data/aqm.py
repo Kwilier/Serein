@@ -13,6 +13,7 @@ A message with steps (s, s+1) is the mean over [cycle+s, cycle+s+1) UTC.
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date, datetime, timedelta
 
 import numpy as np
@@ -42,11 +43,18 @@ def candidate_urls(d: date, cycle: int, bias_corrected: bool) -> list[str]:
 def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
                   bias_corrected: bool = True, overwrite: bool = False,
                   store: str = "west_us") -> pd.DataFrame | None:
-    """Sample AQM hourly PM2.5 at points. Output: point_id, valid_utc, step, value."""
+    """Sample AQM hourly PM2.5 at points. Output: point_id, valid_utc, step, value.
+
+    Caches without matching point metadata are rebuilt.
+    """
+    point_hash = hashlib.sha256(pd.util.hash_pandas_object(
+        points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
     tag = "bc" if bias_corrected else "raw"
     out_path = interim_dir(f"{store}/aqm_{tag}") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
     if out_path.exists() and not overwrite:
-        return pd.read_parquet(out_path)
+        cached = pd.read_parquet(out_path)
+        if cached.attrs.get("aqm_points") == point_hash:
+            return cached
     blob = None
     for url in candidate_urls(d, cycle, bias_corrected):
         r = get(url, allow_404=True, timeout=300)
@@ -72,6 +80,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
             "value": index.sample(f.values),
         }))
     df = pd.concat(rows, ignore_index=True)
+    df.attrs["aqm_points"] = point_hash
     df.to_parquet(out_path, index=False)
     return df
 
