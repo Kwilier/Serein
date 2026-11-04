@@ -469,3 +469,28 @@ def test_choose_zone_rejects_invalid_ranges(changes):
 ])
 def test_choose_zone_accepts_endpoints_and_keeps_public_floors(risk, baseline, pm, expected):
     assert choose_zone(np.float64(risk), np.int64(baseline), pm, pm) == expected
+
+
+@pytest.mark.parametrize("category", [-1, 6, 1.5, True, np.bool_(False), "2", np.nan])
+@pytest.mark.parametrize("short", [False, True])
+def test_message_renderers_reject_invalid_category_indices(category, short):
+    from serein.personal.action_plan import render, render_sms
+
+    with pytest.raises(ValueError, match="category_idx"):
+        if short:
+            render_sms("green", "Sam", "tomorrow", 5, category)
+        else:
+            render("green", "personal_low", "Sam", "tomorrow", 5, 10, 0.1, category)
+
+
+@pytest.mark.parametrize("language", ["en", "es"])
+@pytest.mark.parametrize("category", range(6))
+def test_message_renderers_accept_numpy_category_indices(language, category):
+    from serein.aqi import CATEGORIES
+    from serein.personal.action_plan import render, render_sms
+
+    category = np.int64(category)
+    translated = load_messages(language)["categories"][CATEGORIES[category]]
+    assert translated in render_sms("yellow", "Sam", "tomorrow", 40, category, language)
+    assert translated in render("yellow", "aqi_floor", "Sam", "tomorrow", 40, 60,
+                                0.1, category, language)

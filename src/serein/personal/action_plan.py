@@ -84,14 +84,23 @@ def load_messages(language: str) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+def _category_name(category_idx: int) -> str:
+    if (isinstance(category_idx, (bool, np.bool_))
+            or not isinstance(category_idx, (int, np.integer))
+            or not 0 <= category_idx < len(CATEGORIES)):
+        raise ValueError("category_idx must be an integer from 0 to 5")
+    return CATEGORIES[category_idx]
+
+
 def render(zone: str, reason: str, child_name: str, day_label: str, pm_median: float,
            pm_hi: float, risk: float, category_idx: int, language: str = "en",
            style: str = "plain") -> str:
     """Full plan. style="whatsapp" bolds the title with *...* (WhatsApp markup)."""
+    category = _category_name(category_idx)
     msgs = load_messages(language)
     day_label = msgs.get("day_labels", {}).get(day_label, day_label)
     z = msgs["zones"][zone]
-    cat = msgs["categories"][CATEGORIES[category_idx]]
+    cat = msgs["categories"][category]
     title = z["title"].format(name=child_name, day=day_label)
     lines = [
         f"*{title}*" if style == "whatsapp" else title,
@@ -137,10 +146,11 @@ def sms_segments(text: str) -> tuple[str, int, int]:
 def render_sms(zone: str, child_name: str, day_label: str, pm_median: float,
                category_idx: int, language: str = "en", link: str = "[link]") -> str:
     """Short text-message version of the plan; the link opens the full plan."""
+    category = _category_name(category_idx)
     msgs = load_messages(language)
     day_label = msgs.get("day_labels", {}).get(day_label, day_label)
     sms = msgs["sms"]
-    cat = msgs["categories"][CATEGORIES[category_idx]]
+    cat = msgs["categories"][category]
     parts = [sms[zone].format(name=child_name, day=day_label, pm=round(pm_median),
                               category=cat, link=link)]
     if zone != "green":
