@@ -80,3 +80,30 @@ def test_point_index_zero_radius_accepts_only_exact_grid_point(tmp_path, monkeyp
     monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
     index = grib.PointIndex("test", [0.0], [0.0], [0.0, 0.0], [0.0, 0.01], max_km=0.0)
     np.testing.assert_array_equal(index.sample(np.array([12.0])), [12.0, np.nan])
+
+
+@pytest.mark.parametrize("lat,lon", [
+    ([91.0], [0.0]), ([-91.0], [0.0]), ([0.0], [181.0]),
+    ([0.0], [-181.0]), ([np.nan], [0.0]), ([0.0], [np.inf]),
+    ([], []), ([[0.0]], [[0.0]]), ([0.0, 1.0], [0.0]),
+])
+@pytest.mark.parametrize("target", ["grid", "points"])
+def test_point_index_rejects_invalid_coordinates_before_cache_access(
+        monkeypatch, lat, lon, target):
+    def unexpected(name):
+        pytest.fail("invalid coordinates must not access the cache")
+
+    monkeypatch.setattr(grib, "interim_dir", unexpected)
+    grid = (lat, lon) if target == "grid" else ([0.0], [0.0])
+    points = (lat, lon) if target == "points" else ([0.0], [0.0])
+    with pytest.raises(ValueError, match="Point coordinates"):
+        grib.PointIndex("test", *grid, *points)
+
+
+def test_point_index_accepts_geographic_boundaries_and_reuses_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    lat, lon = [90.0, -90.0, 0.0, 0.0], [0.0, 0.0, -180.0, 180.0]
+    for _ in range(2):
+        index = grib.PointIndex("test", lat, lon, lat, lon)
+        np.testing.assert_allclose(index.dist_km, 0.0, atol=1e-9)
+        np.testing.assert_array_equal(index.sample(np.ones(4)), np.ones(4))

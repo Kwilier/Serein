@@ -114,6 +114,8 @@ class PointIndex:
                  max_km: float = 10.0):
         if not np.isfinite(max_km) or max_km < 0:
             raise ValueError("max_km must be finite and nonnegative")
+        validate_point_coordinates(lat_grid, lon_grid)
+        validate_point_coordinates(pt_lat, pt_lon)
         points_key = hashlib.sha1(
             np.ascontiguousarray(np.c_[pt_lat, pt_lon]).astype(np.float64).tobytes()
         ).hexdigest()[:12]
