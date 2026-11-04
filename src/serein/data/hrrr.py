@@ -123,6 +123,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
             continue
         for name, blob in blobs:
             fields, grid = decode_messages(blob, with_grid=_GRID is None)
+            if not fields:
+                continue
             if grid is not None:
                 _GRID = grid
             if index is None:
@@ -143,6 +145,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
                     "var": SHORT.get(name, name),
                     "value": index.sample(vals),
                 }))
+    if not rows:
+        return None
     df = pd.concat(rows, ignore_index=True)
     df["var"] = df["var"].astype("category")
     df.to_parquet(out_path, index=False)

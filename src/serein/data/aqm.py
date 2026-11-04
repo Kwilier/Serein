@@ -57,13 +57,14 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
         return None
     # AQM version changes can move cells without changing the grid dimensions.
     fields, grid = decode_messages(blob, with_grid=True)
+    fields = [f for f in fields if f.end_step - f.start_step == 1]
+    if not fields:
+        return None
     index = PointIndex(f"aqm{len(grid[0])}", grid[0], grid[1],
                        points["lat"].to_numpy(), points["lon"].to_numpy(), max_km=10.0)
     t0 = datetime(d.year, d.month, d.day, cycle)
     rows = []
     for f in fields:
-        if f.end_step - f.start_step != 1:
-            continue
         rows.append(pd.DataFrame({
             "point_id": points["point_id"].to_numpy(),
             "valid_utc": t0 + timedelta(hours=f.start_step),
