@@ -21,7 +21,7 @@ import torch
 
 from serein.config import REPO_ROOT, Study
 from serein.data.points import load_points
-from serein.eval.metrics import bootstrap_rmse_diff, point_metrics
+from serein.eval.metrics import bootstrap_rmse_diff, interval_metrics, point_metrics
 from serein.features.graph import build_knn_graph
 from serein.features.prepare import leads_of, to_graph_data
 from serein.features.table import processed_dir
@@ -53,12 +53,11 @@ def run_transfer(study: Study, run_dir: Path, split: str = "test", tag: str = ""
     dates = tab["issue_date"].to_numpy()
     out = []
     for li, lead in enumerate(leads):
-        cov = np.nanmean(((obs[:, li] >= np.expm1(lo[:, li])) & (obs[:, li] <= np.expm1(hi[:, li])))
-                         [np.isfinite(obs[:, li])])
+        intervals = interval_metrics(np.expm1(lo[:, li]), np.expm1(hi[:, li]), obs[:, li])
         for m, p in pred.items():
             rec = {"lead": lead, "model": m, **point_metrics(p[:, li], obs[:, li])}
             if m == "smokecast":
-                rec["coverage90"] = float(cov)
+                rec.update(intervals)
             elif np.isfinite(p[:, li]).any():
                 rec.update({f"vs_smokecast_{k}": v for k, v in bootstrap_rmse_diff(
                     pred["smokecast"][:, li], p[:, li], obs[:, li], dates).items()})
@@ -72,6 +71,9 @@ def run_transfer(study: Study, run_dir: Path, split: str = "test", tag: str = ""
         for li, lead in enumerate(leads):
             keep[f"{m}_L{lead}"] = p[:, li]
     keep.to_parquet(out_dir / "predictions.parquet", index=False)
-    print(res.pivot_table(index="model", columns="lead", values="rmse").round(2).to_string())
+    if "rmse" in res:
+        print(res.pivot_table(index="model", columns="lead", values="rmse").round(2).to_string())
+    else:
+        print("No paired predictions and observations to score.")
     print(f"wrote {out_dir}")
     return res
