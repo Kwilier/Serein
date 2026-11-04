@@ -68,6 +68,36 @@ def test_clean_history_rejects_negative_channel_readings(a, b):
     assert (result["pm25"] >= 0).all()
 
 
+def test_clean_history_excludes_unavailable_corrections_without_mutating_input():
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=3, freq="h"),
+        "sensor_index": [1, 1, 1],
+        "pm2.5_cf_1_a": [20.0, 100.0, 300.0],
+        "pm2.5_cf_1_b": [20.0, 100.0, 300.0],
+        "humidity": [np.nan, np.nan, np.nan],
+    }, index=[4, 6, 8])
+    original = frame.copy(deep=True)
+    result = purpleair.clean_history(frame)
+    assert result["time_utc"].tolist() == [frame.loc[8, "time_utc"]]
+    np.testing.assert_allclose(result["pm25"], purpleair.epa_correction([300.0], [np.nan]))
+    assert result.index.tolist() == [0]
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_clean_history_preserves_missing_humidity_median_fallback():
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=3, freq="h"),
+        "sensor_index": [1, 1, 1],
+        "pm2.5_cf_1_a": [20.0, 20.0, 20.0],
+        "pm2.5_cf_1_b": [20.0, 20.0, 20.0],
+        "humidity": [30.0, np.nan, 50.0],
+    })
+    result = purpleair.clean_history(frame)
+    assert len(result) == len(frame)
+    np.testing.assert_allclose(result["pm25"],
+                               purpleair.epa_correction([20.0] * 3, [30.0, 40.0, 50.0]))
+
+
 @pytest.fixture
 def history_client(monkeypatch, tmp_path):
     calls = []
