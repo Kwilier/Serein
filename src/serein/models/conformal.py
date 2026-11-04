@@ -55,7 +55,8 @@ class CQR:
         return self
 
     def apply(self, lo, hi, median):
-        lo2, hi2 = lo.copy(), hi.copy()
+        lo2 = lo.astype(np.result_type(lo.dtype, np.float32), copy=True)
+        hi2 = hi.astype(np.result_type(hi.dtype, np.float32), copy=True)
         n_groups = len(self.bins) + 1
         for lead in range(lo.shape[1]):
             pooled = self.qhat.get((lead, -1), 0.0)

@@ -50,3 +50,15 @@ def test_refit_discards_leads_absent_from_new_sample():
     model = CQR().fit(lo, hi, median, np.full_like(median, 8.0))
     model.fit(lo[:, :1], hi[:, :1], median[:, :1], np.full((60, 1), 3.0))
     assert all(lead == 0 for lead, group in model.qhat)
+
+
+def test_apply_preserves_fractional_corrections_for_integer_forecasts():
+    model = CQR(qhat={(0, -1): 0.75, (1, -1): -0.25})
+    lo = np.array([[2, 4], [3, 5]])
+    hi = lo + 2
+    median = lo + 1
+    lower, upper = model.apply(lo, hi, median)
+    np.testing.assert_allclose(lower, [[1.25, 4.25], [2.25, 5.25]])
+    np.testing.assert_allclose(upper, [[4.75, 5.75], [5.75, 6.75]])
+    np.testing.assert_array_equal(lo, [[2, 4], [3, 5]])
+    np.testing.assert_array_equal(hi, [[4, 6], [5, 7]])
