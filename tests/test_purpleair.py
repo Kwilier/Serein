@@ -441,3 +441,18 @@ def test_history_rejects_invalid_request_fields_before_io(
             start = datetime(2023, 7, 1)
             purpleair.download_history(1, start, start + timedelta(days=1), fields=fields)
     assert not history_client
+
+
+@pytest.mark.parametrize("sensor", [2, 0, -1, None, np.nan, True, "1", 1.5])
+def test_history_rejects_cache_for_invalid_or_different_sensor(history_client, tmp_path, sensor):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=1)
+    frame = purpleair.download_history(1, start, end)
+    path = next(tmp_path.rglob("*.parquet"))
+    frame["sensor_index"] = sensor
+    frame.to_parquet(path, index=False)
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="history cache sensor_index"):
+        purpleair.download_history(1, start, end)
+    assert len(history_client) == 1
+    assert path.read_bytes() == original

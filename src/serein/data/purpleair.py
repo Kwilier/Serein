@@ -135,6 +135,12 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         missing = required - set(cached.columns)
         if missing:
             raise ValueError(f"history cache missing columns: {sorted(missing)}")
+        if not all(
+            isinstance(sensor, Integral) and not isinstance(sensor, (bool, np.bool_))
+            and sensor == sensor_index
+            for sensor in cached["sensor_index"]
+        ):
+            raise ValueError("history cache sensor_index must match the requested sensor")
         return cached
     parts, t = [], start
     while t < end:
