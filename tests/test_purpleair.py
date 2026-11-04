@@ -158,6 +158,31 @@ def test_history_rejects_nonpositive_intervals(history_client, kwargs):
     assert not history_client
 
 
+@pytest.mark.parametrize("name", ["max_days", "average_minutes"])
+@pytest.mark.parametrize("value", [1.5, np.nan, np.inf, -np.inf, True])
+def test_history_rejects_noninteger_intervals(history_client, name, value):
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError):
+        purpleair.download_history(1, start, start + timedelta(days=1), **{name: value})
+    assert not history_client
+
+
+@pytest.mark.parametrize("pause", [-1, np.nan, np.inf, -np.inf])
+def test_history_rejects_invalid_pause_before_request(history_client, pause):
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="pause_s"):
+        purpleair.download_history(1, start, start + timedelta(days=1), pause_s=pause)
+    assert not history_client
+
+
+def test_history_accepts_numpy_integer_intervals_and_zero_pause(history_client):
+    start = datetime(2023, 7, 1)
+    purpleair.download_history(1, start, start + timedelta(days=2),
+                              max_days=np.int64(1), average_minutes=np.int64(60), pause_s=0)
+    assert len(history_client) == 2
+    assert all(call["average"] == 60 for call in history_client)
+
+
 @pytest.mark.parametrize("delta", [timedelta(0), timedelta(days=-1)])
 def test_history_rejects_empty_or_reversed_ranges(history_client, delta):
     start = datetime(2023, 7, 1)

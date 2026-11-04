@@ -96,8 +96,12 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     Legacy date-only caches are ignored because their request settings are unknown.
     Overlapping chunk timestamps keep the later response and are sorted in UTC.
     """
-    if max_days <= 0 or average_minutes <= 0:
-        raise ValueError("max_days and average_minutes must be positive")
+    for name, value in (("max_days", max_days), ("average_minutes", average_minutes)):
+        if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
+            raise ValueError(f"{name} must be a positive integer")
+    if not math.isfinite(pause_s) or pause_s < 0:
+        raise ValueError("pause_s must be finite and nonnegative")
+    max_days, average_minutes = int(max_days), int(average_minutes)
     start = start.replace(tzinfo=UTC) if start.tzinfo is None else start.astimezone(UTC)
     end = end.replace(tzinfo=UTC) if end.tzinfo is None else end.astimezone(UTC)
     if start >= end:
