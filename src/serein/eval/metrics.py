@@ -58,9 +58,14 @@ def crps_from_quantiles(qs: np.ndarray, levels, obs: np.ndarray) -> np.ndarray:
 
 
 def interval_metrics(lo, hi, obs) -> dict:
+    lo, hi, obs = np.asarray(lo), np.asarray(hi), np.asarray(obs)
+    if lo.shape != hi.shape or lo.shape != obs.shape:
+        raise ValueError("interval bounds and observations must have the same shape")
     ok = np.isfinite(lo) & np.isfinite(hi) & np.isfinite(obs)
     if not ok.any():
         return {}
+    if np.any(lo[ok] > hi[ok]):
+        raise ValueError("interval lower bounds must not exceed upper bounds")
     inside = (obs[ok] >= lo[ok]) & (obs[ok] <= hi[ok])
     return {"coverage90": float(inside.mean()), "width90": float(np.median(hi[ok] - lo[ok]))}
 
