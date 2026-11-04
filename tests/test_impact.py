@@ -3,7 +3,7 @@ import math
 import pandas as pd
 import pytest
 
-from serein.eval.impact import impact
+from serein.eval.impact import impact, summary_text
 
 
 @pytest.mark.parametrize("events", [0, 10])
@@ -43,3 +43,36 @@ def test_impact_reconstructs_counts_for_smoky_days(tmp_path):
     assert result["epa"] == pytest.approx(
         {"warned_days": 5, "missed_days": 5, "false_alarms": 5})
     assert result["pct_smoky_days_warned"] == pytest.approx((80, 50))
+
+
+@pytest.mark.parametrize("events", [0, 10])
+def test_summary_explains_undefined_impact_values(tmp_path, events):
+    pd.DataFrame([
+        {"who": who, "lead": 2, "usg_events": events, "n_area_days": 20,
+         "usg_pod": 0.0 if events else float("nan"), "usg_far": far}
+        for who, far in [("smokecast", float("nan")), ("epa_forecast", 1.0)]
+    ]).to_csv(tmp_path / "vs_epa_forecast.csv", index=False)
+
+    text = summary_text(impact(tmp_path, lead=2))
+
+    assert "nan" not in text.lower()
+    assert "2 days ahead" in text
+    assert "0 false alarms" in text
+    assert "EPA's false-alarm count is unavailable" in text
+    if events:
+        assert "(0%)" in text
+    else:
+        assert "no smoky days to calculate warning percentages" in text
+
+
+def test_summary_preserves_defined_comparisons():
+    text = summary_text({
+        "lead": 1, "n_area_days": 20, "smoky_area_days": 10,
+        "serein": {"warned_days": 8, "false_alarms": 2},
+        "epa": {"warned_days": 5, "false_alarms": 5},
+        "pct_smoky_days_warned": (80, 50), "extra_warned_days": 3,
+    })
+
+    assert "a day ahead" in text
+    assert "8 of them (80%) vs. 5 (50%)" in text
+    assert "2 false alarms vs. 5" in text

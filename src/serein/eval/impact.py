@@ -51,13 +51,26 @@ def summary_text(r: dict) -> str:
     s, p = r["serein"], r["epa"]
     a, b = r["pct_smoky_days_warned"]
     ahead = "a day ahead" if r["lead"] == 1 else f"{r['lead']} days ahead"
+    percentages = (
+        f"caught {s['warned_days']:.0f} of them ({a:.0f}%) vs. {p['warned_days']:.0f} ({b:.0f}%) "
+        "for EPA's official forecast"
+        if r["smoky_area_days"] else
+        "and EPA's official forecast had no smoky days to calculate warning percentages"
+    )
+    if pd.notna(s["false_alarms"]) and pd.notna(p["false_alarms"]):
+        alarms = f"{s['false_alarms']:.0f} false alarms vs. {p['false_alarms']:.0f}."
+    else:
+        alarms = " ".join(
+            f"{name} had {counts['false_alarms']:.0f} false alarms."
+            if pd.notna(counts["false_alarms"]) else
+            f"{name}'s false-alarm count is unavailable from the reported ratios."
+            for name, counts in (("Serein", s), ("EPA", p))
+        )
     return (
         f"Across {r['n_area_days']:,} reporting-area days there were {r['smoky_area_days']} days that "
         f"really reached 'Unhealthy for Sensitive Groups' or worse. Warning {ahead}, Serein "
-        f"caught {s['warned_days']:.0f} of them ({a:.0f}%) vs. {p['warned_days']:.0f} ({b:.0f}%) for "
-        f"EPA's official forecast: {r['extra_warned_days']:.0f} more smoky days on which a family "
-        f"of a child with asthma would have had time to prepare, with "
-        f"{s['false_alarms']:.0f} false alarms vs. {p['false_alarms']:.0f}. "
+        f"{percentages}: {r['extra_warned_days']:.0f} more smoky days on which a family "
+        f"of a child with asthma would have had time to prepare. {alarms} "
         f"(4.8 million U.S. children have asthma; CDC 2023.)"
     )
 
