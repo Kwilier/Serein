@@ -23,7 +23,7 @@ def test_failed_cycle_rebuild_preserves_cache_and_raises(
     monkeypatch.setattr(source, "decode_messages", lambda *args, **kwargs: ([], None))
     if source is aqm:
         monkeypatch.setattr(aqm, "get", lambda *args, **kwargs:
-                            None if missing else SimpleNamespace(content=b"empty"))
+                            None if missing else SimpleNamespace(content=b"empty", close=lambda: None))
         kwargs = {}
     else:
         monkeypatch.setattr(hrrr, "_fetch_fields", lambda *args:
@@ -39,7 +39,7 @@ def test_failed_cycle_rebuild_preserves_cache_and_raises(
     "pm25", "surface", 0, 24, np.array([10.0]), "ug/m3")]])
 def test_aqm_skips_cycles_without_hourly_fields(tmp_path, monkeypatch, fields):
     monkeypatch.setattr(aqm, "interim_dir", lambda name: tmp_path)
-    monkeypatch.setattr(aqm, "get", lambda *args, **kwargs: SimpleNamespace(content=b"cycle"))
+    monkeypatch.setattr(aqm, "get", lambda *args, **kwargs: SimpleNamespace(content=b"cycle", close=lambda: None))
     monkeypatch.setattr(aqm, "decode_messages", lambda *args, **kwargs: (fields, None))
     points = pd.DataFrame({"point_id": ["A"], "lat": [0.0], "lon": [0.0]})
 

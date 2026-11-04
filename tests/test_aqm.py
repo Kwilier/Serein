@@ -9,10 +9,61 @@ from serein.data import aqm, grib
 from serein.data.grib import GribField
 
 
+@pytest.mark.parametrize("outcome", ["success", "empty", "read_error", "decode_error"])
+def test_cycle_closes_response_before_decoding(tmp_path, monkeypatch, outcome):
+    monkeypatch.setattr(aqm, "interim_dir", lambda name: tmp_path)
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    failure = RuntimeError("download or decode failed")
+
+    class Response:
+        closed = False
+
+        @property
+        def content(self):
+            if outcome == "read_error":
+                raise failure
+            return b"cycle"
+
+        def close(self):
+            self.closed = True
+
+    response = Response()
+    requests = []
+
+    def fetch(url, **kwargs):
+        requests.append(url)
+        return None if len(requests) == 1 else response
+
+    def decode(blob, with_grid=False):
+        assert response.closed
+        assert blob == b"cycle"
+        if outcome == "decode_error":
+            raise failure
+        fields = [] if outcome == "empty" else [
+            GribField("pm25", "surface", 0, 1, np.array([12.0]), "ug/m3")]
+        return fields, ([0.0], [0.0])
+
+    monkeypatch.setattr(aqm, "get", fetch)
+    monkeypatch.setattr(aqm, "decode_messages", decode)
+    points = pd.DataFrame({"point_id": ["A"], "lat": [0.0], "lon": [0.0]})
+    if outcome.endswith("error"):
+        with pytest.raises(RuntimeError) as exc:
+            aqm.extract_cycle(date(2023, 8, 1), points)
+        assert exc.value is failure
+    else:
+        result = aqm.extract_cycle(date(2023, 8, 1), points)
+        if outcome == "empty":
+            assert result is None
+        else:
+            assert result["value"].tolist() == [12.0]
+    assert response.closed
+    assert len(requests) == 2
+
+
 def test_extract_cycle_uses_current_grid_when_cell_count_is_unchanged(tmp_path, monkeypatch):
     monkeypatch.setattr(aqm, "interim_dir", lambda name: tmp_path)
     monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
-    monkeypatch.setattr(aqm, "get", lambda *args, **kwargs: SimpleNamespace(content=b"cycle"))
+    monkeypatch.setattr(aqm, "get", lambda *args, **kwargs: SimpleNamespace(content=b"cycle", close=lambda: None))
     grids = [([0.0, 0.0], [0.0, 1.0]), ([0.0, 0.0], [1.0, 0.0])]
     values = [[10.0, 20.0], [20.0, 10.0]]
     calls = []
@@ -40,7 +91,7 @@ def test_cycle_cache_matches_requested_points(tmp_path, monkeypatch, change):
 
     def fetch(*args, **kwargs):
         calls.append(args[0])
-        return SimpleNamespace(content=b"cycle")
+        return SimpleNamespace(content=b"cycle", close=lambda: None)
 
     def decode(blob, with_grid=False):
         fields = [GribField("pm25", "surface", h, h + 1,
@@ -84,7 +135,7 @@ def test_partial_cycle_is_retried_until_all_hours_are_available(tmp_path, monkey
 
     def fetch(*args, **kwargs):
         calls.append(args[0])
-        return SimpleNamespace(content=b"cycle")
+        return SimpleNamespace(content=b"cycle", close=lambda: None)
 
     def decode(blob, with_grid=False):
         steps = list(range(hours))
@@ -116,7 +167,7 @@ def test_nonfinite_in_grid_samples_are_retried(tmp_path, monkeypatch, missing):
 
     def fetch(*args, **kwargs):
         calls.append(args[0])
-        return SimpleNamespace(content=b"cycle")
+        return SimpleNamespace(content=b"cycle", close=lambda: None)
 
     def decode(blob, with_grid=False):
         fields = [GribField("pm25", "surface", h, h + 1,

@@ -74,7 +74,10 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
     for url in candidate_urls(d, cycle, bias_corrected):
         r = get(url, allow_404=True, timeout=300)
         if r is not None:
-            blob = r.content
+            try:
+                blob = r.content
+            finally:
+                r.close()
             break
     if blob is None:
         if out_path.exists():
