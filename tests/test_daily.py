@@ -7,6 +7,49 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("hours", [11, 12])
+def test_forecast_duplicates_do_not_inflate_daily_coverage(hours):
+    forecast = pd.DataFrame({
+        "issue_date": date(2023, 8, 1),
+        "point_id": "A",
+        "valid_utc": pd.date_range("2023-08-01 08:00", periods=hours, freq="h"),
+        "value": 10.0,
+    })
+    forecast = pd.concat([forecast, forecast.iloc[[0]]], ignore_index=True)
+    original = forecast.copy(deep=True)
+    row = model_daily(forecast, pd.Series({"A": -8})).iloc[0]
+    assert row["size"] == hours
+    if hours < 12:
+        assert np.isnan(row["mean"]) and np.isnan(row["max"])
+    else:
+        assert row["mean"] == pytest.approx(10.0)
+        assert row["max"] == pytest.approx(10.0)
+    pd.testing.assert_frame_equal(forecast, original)
+
+
+def test_forecast_duplicate_averages_preserve_group_boundaries():
+    forecast = pd.DataFrame({
+        "issue_date": [date(2023, 8, 1)] * 5 + [date(2023, 7, 31)],
+        "point_id": ["A"] * 4 + ["B", "A"],
+        "var": ["smoke"] * 3 + ["t2m", "smoke", "smoke"],
+        "valid_utc": pd.to_datetime([
+            "2023-08-01 08:00", "2023-08-01 08:00", "2023-08-01 09:00",
+            "2023-08-01 08:00", "2023-08-01 08:00", "2023-08-01 08:00",
+        ]),
+        "value": [10.0, 30.0, 40.0, 300.0, 100.0, 80.0],
+    })
+    out = model_daily(forecast, pd.Series({"A": -8, "B": -8}),
+                      min_count=1, group_extra=("var",))
+    rows = out.set_index(["issue_date", "point_id", "var", "lead"])
+    smoke = rows.loc[(date(2023, 8, 1), "A", "smoke", 0)]
+    assert smoke["size"] == 2
+    assert smoke["mean"] == pytest.approx(30.0)
+    assert smoke["max"] == pytest.approx(40.0)
+    assert rows.loc[(date(2023, 8, 1), "A", "t2m", 0), "mean"] == 300.0
+    assert rows.loc[(date(2023, 8, 1), "B", "smoke", 0), "mean"] == 100.0
+    assert rows.loc[(date(2023, 7, 31), "A", "smoke", 1), "mean"] == 80.0
+
+
 @pytest.mark.parametrize("hours", [17, 18])
 def test_observation_duplicates_do_not_inflate_daily_coverage(hours):
     hourly = pd.DataFrame({

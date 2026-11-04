@@ -45,10 +45,14 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
                 min_count: int = 12, group_extra: tuple = ()) -> pd.DataFrame:
     """Aggregate a forecast (issue_date, point_id, valid_utc, value) to lead-day mean/max.
 
-    lead = local_date - issue_date (days). Size counts finite values.
+    lead = local_date - issue_date (days). Size counts distinct finite timestamps.
+    Repeated values at a timestamp are averaged within each forecast group first.
     """
-    d = add_local_date(df, offsets, time_col="valid_utc")
+    d = df.copy()
     d[value_col] = d[value_col].where(np.isfinite(d[value_col]))
+    timestamp_keys = ["issue_date", "point_id", *group_extra, "valid_utc"]
+    d = d.groupby(timestamp_keys, observed=True, as_index=False)[value_col].mean()
+    d = add_local_date(d, offsets, time_col="valid_utc")
     d["lead"] = (pd.to_datetime(d["local_date"]) - pd.to_datetime(d["issue_date"])).dt.days
     keys = ["issue_date", "point_id", *group_extra, "lead"]
     g = d.groupby(keys, observed=True)[value_col].agg(
