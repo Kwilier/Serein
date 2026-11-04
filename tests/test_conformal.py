@@ -1,6 +1,33 @@
 import numpy as np
 
-from serein.models.conformal import CQR
+from serein.models.conformal import CQR, _qhat
+
+
+def test_calibration_uses_finite_sample_order_statistic():
+    scores = np.arange(100, dtype=float)
+    # For 90% coverage, ceil(101 * 0.9) selects the 91st score.
+    assert _qhat(scores, 0.1) == 90.0
+
+
+def test_calibration_rank_ignores_missing_scores_and_caps_at_sample_size():
+    scores = np.concatenate([np.arange(100, dtype=float), [np.nan, np.inf]])
+    assert _qhat(scores, 0.1) == 90.0
+    assert _qhat(np.array([2.0, 5.0]), 0.1) == 5.0
+    assert _qhat(np.array([2.0, 5.0]), 0.0) == 5.0
+    assert _qhat(np.array([2.0, 5.0]), 1.0) == 2.0
+
+
+def test_calibration_applies_rank_correction_to_pooled_and_group_intervals():
+    y = np.arange(100, dtype=float)[:, None]
+    lo = np.zeros_like(y)
+    hi = np.zeros_like(y)
+    median = np.zeros_like(y)
+    model = CQR().fit(lo, hi, median, y)
+    assert model.qhat[(0, -1)] == 90.0
+    assert model.qhat[(0, 0)] == 90.0
+    lower, upper = model.apply(lo[:1], hi[:1], median[:1])
+    np.testing.assert_array_equal(lower, [[-90.0]])
+    np.testing.assert_array_equal(upper, [[90.0]])
 
 
 def test_refit_discards_group_corrections_from_previous_sample():

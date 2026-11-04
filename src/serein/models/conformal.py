@@ -26,8 +26,8 @@ def _qhat(scores: np.ndarray, alpha: float) -> float:
     n = len(s)
     if n == 0:
         return 0.0
-    level = min(1.0, np.ceil((n + 1) * (1 - alpha)) / n)
-    return float(np.quantile(s, level, method="higher"))
+    rank = max(1, min(n, int(np.ceil((n + 1) * (1 - alpha)))))
+    return float(np.partition(s, rank - 1)[rank - 1])
 
 
 @dataclass
