@@ -274,6 +274,9 @@ def clean_history(df: pd.DataFrame) -> pd.DataFrame:
     timestamps = pd.to_datetime(df["time_utc"], utc=True, errors="coerce", format="mixed")
     if timestamps.isna().any():
         raise ValueError("history time_utc must contain valid observation timestamps")
+    keys = pd.DataFrame({"sensor_index": df["sensor_index"], "time_utc": timestamps})
+    if keys.duplicated().any():
+        raise ValueError("history contains duplicate sensor/timestamp pairs")
     mean, keep = qc_ab(df["pm2.5_cf_1_a"], df["pm2.5_cf_1_b"])
     humidity = df["humidity"].where(np.isfinite(df["humidity"]) & df["humidity"].between(0, 100))
     sensor_median = humidity.groupby(df["sensor_index"]).transform("median")

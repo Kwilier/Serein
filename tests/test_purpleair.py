@@ -83,6 +83,39 @@ def test_clean_history_rejects_invalid_observation_times(stamp):
     pd.testing.assert_frame_equal(frame, original)
 
 
+@pytest.mark.parametrize("second", [
+    "2023-07-01 00:00:00", "2023-06-30 17:00:00-07:00",
+])
+def test_clean_history_rejects_duplicate_sensor_observation_times(second):
+    frame = pd.DataFrame({
+        "time_utc": ["2023-07-01 00:00:00", second],
+        "sensor_index": [1, 1],
+        "pm2.5_cf_1_a": [10.0, 20.0],
+        "pm2.5_cf_1_b": [10.0, 20.0],
+        "humidity": [40.0, 80.0],
+    }, index=[5, 5])
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="duplicate.*sensor.*timestamp"):
+        purpleair.clean_history(frame)
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_clean_history_accepts_simultaneous_observations_from_different_sensors():
+    frame = pd.DataFrame({
+        "time_utc": ["2023-07-01 00:00:00", "2023-06-30 17:00:00-07:00"],
+        "sensor_index": [1, 2],
+        "pm2.5_cf_1_a": [10.0, 20.0],
+        "pm2.5_cf_1_b": [10.0, 20.0],
+        "humidity": [40.0, 80.0],
+    }, index=[5, 5])
+    original = frame.copy(deep=True)
+    result = purpleair.clean_history(frame)
+    assert result["sensor_index"].tolist() == [1, 2]
+    assert result["time_utc"].tolist() == frame["time_utc"].tolist()
+    np.testing.assert_allclose(result["pm25"], purpleair.epa_correction([10, 20], [40, 80]))
+    pd.testing.assert_frame_equal(frame, original)
+
+
 def test_clean_history_preserves_valid_timezone_observation_times():
     frame = pd.DataFrame({
         "time_utc": pd.date_range("2023-07-01", periods=2, freq="h", tz="US/Pacific"),
