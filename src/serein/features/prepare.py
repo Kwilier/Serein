@@ -67,7 +67,8 @@ class Prep:
         t = train.copy()
         y0 = np.log1p(t["y_L0"].clip(lower=0))
         self.site_clim = y0.groupby(t["point_id"]).median().dropna().to_dict()
-        clean = t["hms_prev"].fillna(0) == 0 if "hms_prev" in t else pd.Series(True, index=t.index)
+        # A missing map is unknown, not a confirmed clean-air day.
+        clean = t["hms_prev"].eq(0) if "hms_prev" in t else pd.Series(False, index=t.index)
         self.site_bg = y0[clean].groupby(t.loc[clean, "point_id"]).median().dropna().to_dict()
         self.global_clim = float(np.nanmedian(y0))
         t = self._add_derived(t)
@@ -82,7 +83,8 @@ class Prep:
         self.mask_cols = []
         for c in self.feature_cols:
             v = _transform(c, t[c])
-            mu, sd = float(np.nanmean(v)) if v.notna().any() else 0.0, float(np.nanstd(v))
+            mu, sd = ((float(np.nanmean(v)), float(np.nanstd(v)))
+                      if v.notna().any() else (0.0, 1.0))
             self.mean[c], self.std[c] = mu, (sd if sd > 1e-6 else 1.0)
             if is_sensor_feature(c) or v.isna().any():
                 self.mask_cols.append(c)

@@ -35,7 +35,7 @@ About 4.8 million U.S. children have asthma (CDC, 2023). Smoke is a known asthma
 
 Families already get air quality forecasts, but they have three problems.
 
-First, they are coarse. EPA's AQI forecast covers a whole metro "reporting area", and NOAA's smoke model is often off by a lot when a plume arrives. In our 2023 test weeks, the best NOAA forecast for tomorrow was off by 11 µg/m³ on a typical day, more than the gap between "Good" and "Unhealthy for Sensitive Groups".
+First, they are coarse. EPA's AQI forecast covers a whole metro "reporting area", and smoke arrival can be difficult to forecast. In our saved 2023 development evaluation, an AQM-first fallback had next-day RMSE of 11.0 µg/m³. This fallback uses HRRR or persistence when AQM is unavailable.
 
 Second, they ignore what monitors measure right now. The monitors see smoke arrive hours before the next model run, but the forecast a family reads does not use those readings.
 
@@ -51,7 +51,7 @@ The people who act on smoke days are parents, school nurses deciding on recess, 
 
 SmokeCast forecasts the daily average smoke level (PM2.5) at every air monitor and on a grid covering the western U.S., for today and the next three days. Each morning it reads NOAA's own smoke and air quality forecasts, the weather forecast, satellite smoke plume maps, fire detections and yesterday's readings from about 400 EPA monitors. The model treats the monitors as a network: each monitor's forecast is adjusted using what nearby monitors are seeing. It does not replace NOAA's forecast. It learns how NOAA's forecast tends to be wrong and corrects it. Every forecast comes with a range (for example "about 75, could reach 140"), and we checked that the true value lands inside the 90% range about 90% of the time.
 
-AirPlan turns that forecast into advice for one child. A parent answers a six-question daily check-in (symptoms, rescue inhaler use, whether the child has a cold, whether they took their controller medicine). AirPlan starts from what medical studies say about the average child and updates as the log grows, until it knows whether this child is more or less sensitive to smoke than average. It then sends a green, yellow or red plan in the family's language (English and Spanish so far). Two safety rules are built in: AirPlan can only make EPA's advice stricter, never looser, and every message tells parents to follow their doctor's asthma action plan.
+AirPlan prototypes a personal risk estimate using a population prior and per-child symptom history. The app demonstrates it with a synthetic child; its separate six-question check-in form accepts fictional entries and does not yet update that demonstration model. Connecting real histories requires observed exposure data, consent and clinical review. English and Spanish draft messages can be generated, with a public-guidance floor and reminders to follow the child's own clinician-approved asthma plan. Clinical and native-speaker reviews remain open tasks.
 
 **What is new.**
 1. Correcting NOAA's smoke forecast with live monitor readings, and checking the result against NOAA and EPA on days the model never saw.
@@ -59,9 +59,9 @@ AirPlan turns that forecast into advice for one child. A parent answers a six-qu
 3. A per-child smoke sensitivity estimate from a check-in a parent can finish in under a minute.
 [TEAM: verify with a literature search (D-6) that no published tool does all three before keeping "new" claims.]
 
-**Results so far (dev mode, 2023 held-out weeks).** Error is the typical miss in µg/m³ (RMSE, lower is better).
+**Results so far (historical dev mode, 2023 held-out weeks).** Error is RMSE in µg/m³, which gives larger misses more weight. These numbers predate the latest pipeline fixes and require a development rerun before representing the revised system.
 
-| Forecast for | Serein | Best NOAA forecast |
+| Forecast for | Serein | AQM → HRRR → persistence fallback |
 |---|---|---|
 | Tomorrow | 7.9 | 11.0 |
 | In 2 days | 9.7 | 12.3 |
@@ -79,10 +79,10 @@ Against EPA's official AQI forecast, one day ahead: Serein had the right AQI cat
 
 **What we built.** A working pipeline that downloads five fire seasons (2021 to 2025) of free public data from NOAA, NASA and EPA, trains SmokeCast, scores it, and draws forecast maps. A demo app shows the neighborhood map, a family's plan and the daily check-in. The project has automated tests that run on every change.
 
-**How we tested it, and why you can trust the test.** We wrote the rules before we scored anything (docs/BACKTEST_PROTOCOL.md). The model trains on 2021-22, is tuned on 2023, and is tested once on 2024-25, fire seasons it never saw. Every forecast only uses data that was actually public at 11:30 am Pacific on the day it was issued, so the model cannot "peek" at the future. We compare against NOAA's and EPA's real archived forecasts for the same places and days.
+**Evaluation plan.** The draft protocol (docs/BACKTEST_PROTOCOL.md) reserves 2024-25 for a final test after the team freezes the methods. That final test has not run. Development trains on 2021-22 and uses 2023 for tuning and scoring. Availability cutoffs are enforced using documented posting-lag assumptions; historical availability still needs an audit. Comparisons use archived forecasts for paired places and days.
 
 **What the tests showed (development weeks of 2023).**
-- One day ahead, Serein's typical error was 7.9 µg/m³ vs. 11.0 for the best NOAA forecast.
+- One day ahead, Serein's RMSE was 7.9 µg/m³ vs. 11.0 for the AQM-first fallback.
 - It warned on 71% of "Unhealthy for Sensitive Groups" days vs. 46% for EPA, with fewer false alarms.
 - With 20% of monitors hidden, it still beat NOAA at the hidden sites, so it can forecast for neighborhoods with no monitor.
 - We removed one input at a time to see what matters. Without NOAA's HRRR smoke and weather forecasts, tomorrow's error got 29% worse. Without live monitor readings, today's error got 66% worse. Wind direction between monitors, which we expected to help, made no difference, and satellite fire detections helped only a little (1-4%). We report both.

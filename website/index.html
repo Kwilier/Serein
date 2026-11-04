@@ -67,7 +67,7 @@
       <h3>1 · SmokeCast</h3>
       <p>A graph neural network treats air sensors as a network. Each sensor learns from its neighbors, deciding how much to trust each one, and it can forecast neighborhoods that have <strong>no sensor at all</strong>. It corrects NOAA's official forecasts using live readings and reports an honest uncertainty range.</p>
       <h3>2 · AirPlan</h3>
-      <p>A personal Bayesian model learns each child's own smoke sensitivity from a 10-second daily check-in, starting from what medical studies say about all children. It sends a green / yellow / red plan. It can make advice stricter than public guidance, never looser.</p>
+      <p>AirPlan prototypes a personal Bayesian smoke-sensitivity model, starting from a population prior. The demo generates green / yellow / red plans from synthetic symptom histories, with a public-guidance floor. Connecting real check-ins and completing clinical review are future steps.</p>
       <h3>3 · Proof</h3>
       <p>We wrote the test rules down in advance. The final test runs once on 2024-25 fire seasons the model never trained or was tuned on, against NOAA and EPA on the very same days. The numbers shown here are 2023 development results.</p>
     </div>
@@ -78,21 +78,21 @@
 
 <section><div class="wrap">
   <h2>Results so far</h2>
-  <p class="lead">Trained on the 2021-22 fire seasons, tested on held-out weeks of 2023 across CA, OR, WA, NV and ID. <span class="note">(Development results; the final test on 2024-25 is pending.)</span></p>
+  <p class="lead">Historical development results: trained on 2021-22 and scored on held-out weeks of 2023 across CA, OR, WA, NV and ID. <span class="note">The latest pipeline fixes require a development rerun. The final test on 2024-25 is pending.</span></p>
   <div class="grid3">
-    <div class="card"><div class="stat">29%<small>smaller errors than NOAA's best forecast, 1 day ahead</small></div></div>
+    <div class="card"><div class="stat">29%<small>lower RMSE than the AQM-first fallback, 1 day ahead</small></div></div>
     <div class="card"><div class="stat">71% vs 46%<small>of real orange-or-worse days warned a day ahead: Serein vs. EPA's official forecast, with fewer false alarms</small></div></div>
-    <div class="card"><div class="stat">87%<small>of 344 monitors where Serein beat NOAA (1 day ahead)</small></div></div>
+    <div class="card"><div class="stat">87%<small>of 344 monitors where Serein beat the AQM-first fallback (1 day ahead)</small></div></div>
   </div>
   <table style="margin-top:28px">
-    <tr><th>Forecast error (µg/m³)</th><th>Today</th><th>+1 day</th><th>+2 days</th><th>+3 days</th></tr>
+    <tr><th>Forecast RMSE (µg/m³)</th><th>Today</th><th>+1 day</th><th>+2 days</th><th>+3 days</th></tr>
     <tr class="us"><td>Serein SmokeCast</td><td>4.5</td><td>7.9</td><td>9.7</td><td>11.4</td></tr>
-    <tr><td>Best NOAA forecast</td><td>10.1</td><td>11.0</td><td>12.3</td><td>15.5</td></tr>
+    <tr><td>AQM → HRRR → persistence fallback</td><td>10.1</td><td>11.0</td><td>12.3</td><td>15.5</td></tr>
     <tr class="us"><td>Serein where there is no sensor</td><td>7.0</td><td>8.5</td><td>10.1</td><td>11.3</td></tr>
   </table>
   <div class="two">
-    <figure><img src="assets/fig_rmse_by_lead_all.png" alt="Error by lead time chart"><figcaption>Lower is better. Serein beats every baseline at every lead time.</figcaption></figure>
-    <figure><img src="assets/fig_improvement_map_L1.png" alt="Map of improvement by monitor"><figcaption>Blue: monitors where Serein beat NOAA's best forecast.</figcaption></figure>
+    <figure><img src="assets/fig_rmse_by_lead_all.png" alt="Error by lead time chart"><figcaption>Historical development RMSE; lower is better. Baselines are compared on available paired forecasts.</figcaption></figure>
+    <figure><img src="assets/fig_improvement_map_L1.png" alt="Map of improvement by monitor"><figcaption>Blue: monitors where Serein beat the AQM-first fallback.</figcaption></figure>
   </div>
   <figure><img src="assets/fig_case_530630047_L1.png" alt="Spokane August 2023 case study"><figcaption>Spokane, WA, August 2023. NOAA forecast ~50 µg/m³; Serein ~130 with a range that included the real 300. Peaks are still under-forecast, and we are working on that.</figcaption></figure>
 </div></section>
@@ -101,7 +101,7 @@
   <h2>A plan made for one child</h2>
   <div class="two">
     <div>
-      <p>After a few weeks of check-ins, AirPlan knows whether a child reacts at 20 µg/m³ or is fine at 50. In tests with 300 simulated children, personal plans beat one-size-fits-all advice within about two weeks of logging.</p>
+      <p>AirPlan experiments with learning individual smoke sensitivity from symptom histories. Its evidence so far comes from 300 simulated children; it has not been validated for predicting a real child's symptoms. The app demonstrates this with a synthetic history, separately from its check-in form.</p>
       <div class="plan"><strong>YELLOW for Maya tomorrow:</strong> smoke may cause symptoms.<br>
         Keep the quick-relief inhaler with Maya, including at school. Swap running and sports practice for indoor activities. Keep windows closed; run an air purifier if you have one.<br>
         <span class="note">Also in Spanish, with more languages coming after review by native speakers and clinicians.</span></div>
@@ -115,7 +115,7 @@
   <div class="grid3">
     <div class="card"><h3>Not a medical device</h3>Every plan points to the child's own asthma action plan and emergency signs.</div>
     <div class="card"><h3>Demo session storage</h3>Use fictional entries only. Check-ins are held in memory on the app server for the session, with CSV export and a clear-log button. They are not saved to a database. The family-plan demonstration uses a separate synthetic symptom history.</div>
-    <div class="card"><h3>Honest science</h3>Pre-registered tests, free public data, and we report where we lose.</div>
+    <div class="card"><h3>Honest science</h3>Documented development comparisons and explicit limitations. The final evaluation protocol still needs to be frozen before the reserved test seasons are scored.</div>
   </div>
 </div></section>
 

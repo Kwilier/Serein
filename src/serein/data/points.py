@@ -67,7 +67,10 @@ def build_points(sites: pd.DataFrame, region: Region, grid_step: float | None,
     s["kind"] = "epa"
     if "reporting_area" not in s:
         s["reporting_area"] = ""
-    parts = [s[["point_id", "lat", "lon", "kind", "gmt_offset", "reporting_area"]]]
+    if "state" not in s:
+        s["state"] = ""
+    s["state"] = s["state"].fillna("").astype(str).str.strip().str.upper()
+    parts = [s[["point_id", "lat", "lon", "kind", "gmt_offset", "reporting_area", "state"]]]
     if purpleair is not None and len(purpleair):
         p = purpleair[region.contains(purpleair["lat"], purpleair["lon"])].copy()
         p["point_id"] = "PA" + p["sensor_index"].astype(str)

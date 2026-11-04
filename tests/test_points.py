@@ -88,3 +88,20 @@ def test_ids_cannot_collide_between_sensor_kinds():
     sensors = pd.DataFrame({"sensor_index": [123], "lat": [38.0], "lon": [-122.0]})
     with pytest.raises(ValueError, match="conflicting.*point_id"):
         build_points(original, REGION, None, sensors)
+
+
+def test_epa_registry_keeps_state_for_reporting_area_matching():
+    source = sites().assign(state=" ca ", reporting_area="Sacramento")
+    original = source.copy(deep=True)
+    points = build_points(source, REGION, None)
+
+    assert points.loc[0, "state"] == "CA"
+    assert points.loc[0, "reporting_area"] == "Sacramento"
+    pd.testing.assert_frame_equal(source, original)
+
+
+def test_conflicting_state_metadata_for_one_epa_point_is_rejected():
+    source = sites().assign(state="CA", reporting_area="Shared")
+    conflicting = source.assign(state="OR")
+    with pytest.raises(ValueError, match="conflicting.*point_id"):
+        build_points(pd.concat([source, conflicting]), REGION, None)

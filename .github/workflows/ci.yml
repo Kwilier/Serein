@@ -1,0 +1,49 @@
+name: Python checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONIOENCODING: utf-8
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.7"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+      - name: Install CPU dependencies and app extras
+        # Ignore the project's explicit CUDA source before selecting CPU wheels.
+        # See https://docs.astral.sh/uv/guides/integration/pytorch/#automatic-backend-selection
+        run: |
+          uv venv --python 3.12
+          uv pip install --no-sources --torch-backend cpu --group dev --editable '.[app]'
+          uv pip check
+          .venv/bin/python -c "import torch; assert torch.version.cuda is None, 'CI must use CPU PyTorch'"
+      - name: Lint and check shell syntax
+        run: |
+          .venv/bin/python -m ruff check .
+          for script_path in scripts/*.sh; do bash -n "$script_path"; done
+      - name: Run all tests including app and training pipeline
+        run: .venv/bin/python -m pytest -q
+      - name: Check command-line entry point
+        run: .venv/bin/serein --help

@@ -76,3 +76,15 @@ def test_checkin_can_be_saved_and_cleared_from_the_session(demo_app):
     assert not demo_app.exception
     assert demo_app.session_state["log"] == []
     assert len(demo_app.dataframe) == 0
+
+
+def test_archived_negative_lower_bounds_do_not_crash_family_plan(demo_app, tmp_path):
+    forecast = tmp_path / "outputs" / "maps" / "forecast_20230818.parquet"
+    rows = pd.read_parquet(forecast)
+    rows["q05"], rows["q25"] = -0.5, -0.1
+    rows.to_parquet(forecast, index=False)
+
+    demo_app.run()
+
+    assert not demo_app.exception
+    assert any("Maya" in element.value for element in demo_app.text)

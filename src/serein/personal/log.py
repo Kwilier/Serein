@@ -4,7 +4,8 @@ Design rules
 ------------
 * Six taps, no typing. Parents of sick kids are tired.
 * Ask about TODAY only (memory of past days is unreliable).
-* Everything stays on the family's device. Nothing is uploaded (docs/ETHICS.md).
+* The demo holds fictional check-ins in server memory for the current session.
+  A hosted app receives entries on that server; CSV export is an explicit download.
 
 Questions -> fields
   1. Any asthma symptoms today? none / mild / moderate / severe     -> symptoms 0-3
