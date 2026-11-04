@@ -494,3 +494,39 @@ def test_message_renderers_accept_numpy_category_indices(language, category):
     assert translated in render_sms("yellow", "Sam", "tomorrow", 40, category, language)
     assert translated in render("yellow", "aqi_floor", "Sam", "tomorrow", 40, 60,
                                 0.1, category, language)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("pm_median", -1), ("pm_median", True), ("pm_median", "5"),
+    ("pm_median", np.nan), ("pm_median", np.inf),
+    ("pm_hi", -1), ("pm_hi", np.nan), ("pm_hi", [10]),
+    ("risk", -0.1), ("risk", 1.1), ("risk", True), ("risk", np.inf),
+    ("pm_hi", 4),
+])
+def test_full_message_rejects_invalid_numbers(field, value):
+    from serein.personal.action_plan import render
+
+    inputs = {"pm_median": 5, "pm_hi": 10, "risk": 0.1}
+    inputs[field] = value
+    with pytest.raises(ValueError, match=field):
+        render("green", "personal_low", "Sam", "tomorrow", category_idx=0, **inputs)
+
+
+@pytest.mark.parametrize("pm", [-1, True, "5", np.nan, np.inf, [5]])
+def test_sms_rejects_invalid_pm(pm):
+    from serein.personal.action_plan import render_sms
+
+    with pytest.raises(ValueError, match="pm_median"):
+        render_sms("green", "Sam", "tomorrow", pm, 0)
+
+
+@pytest.mark.parametrize("risk", [0, 1])
+@pytest.mark.parametrize("language", ["en", "es"])
+def test_full_message_accepts_probability_endpoints_and_numpy_values(risk, language):
+    from serein.personal.action_plan import render, render_sms
+
+    assert render("green", "personal_low", "Sam", "tomorrow", np.float64(5),
+                  np.int64(10), np.float64(risk), 0, language) == render(
+                      "green", "personal_low", "Sam", "tomorrow", 5, 10, risk, 0, language)
+    assert render_sms("green", "Sam", "tomorrow", np.float64(0), 0, language) == render_sms(
+        "green", "Sam", "tomorrow", 0, 0, language)
