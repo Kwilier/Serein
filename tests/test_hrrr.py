@@ -8,6 +8,45 @@ from serein.data import grib, hrrr
 from serein.data.grib import GribField
 
 
+@pytest.mark.parametrize("missing", ["hour", "field", "decoded"])
+def test_partial_cycle_is_retried_until_complete(tmp_path, monkeypatch, missing):
+    monkeypatch.setattr(hrrr, "interim_dir", lambda name: tmp_path)
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    partial = True
+    calls = []
+
+    def fetch(d, cycle, fhr, wanted):
+        calls.append(fhr)
+        if partial and missing == "hour" and fhr == 1:
+            return None
+        return [(name, b"empty" if partial and missing == "decoded" and name != hrrr.SMOKE
+                 else b"field") for name in wanted
+                if not (partial and missing == "field" and name != hrrr.SMOKE)]
+
+    def decode(blob, with_grid=False):
+        fields = [] if blob == b"empty" else [GribField(
+            "smoke", "surface", 0, 0, np.array([10.0]), "ug/m3")]
+        return fields, ([0.0], [0.0]) if with_grid else None
+
+    monkeypatch.setattr(hrrr, "_fetch_fields", fetch)
+    monkeypatch.setattr(hrrr, "decode_messages", decode)
+    points = pd.DataFrame({"point_id": ["A"], "lat": [0.0], "lon": [0.0]})
+    kwargs = {"max_fhr": 1, "met_every": 1,
+              "met_vars": [hrrr.DEFAULT_MET[0]], "workers": 1}
+    day = date(2023, 8, 1)
+    first = hrrr.extract_cycle(day, points, **kwargs)
+    assert len(first) < 4
+    assert len(hrrr.load_cycles([day])) == len(first)
+    partial = False
+    calls.clear()
+    complete = hrrr.extract_cycle(day, points, **kwargs)
+    assert calls, "missing hours or fields must be retried"
+    assert len(complete) == 4
+    calls.clear()
+    pd.testing.assert_frame_equal(hrrr.extract_cycle(day, points, **kwargs), complete)
+    assert not calls
+
+
 @pytest.mark.parametrize("setting,value", [
     ("max_fhr", -1), ("smoke_every", 0), ("smoke_every", -1),
     ("met_every", 0), ("met_every", -1), ("workers", 0),

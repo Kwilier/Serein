@@ -92,6 +92,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     Use met_vars=None for default weather fields or [] for smoke only.
     Caches without matching request metadata are rebuilt. A failed rebuild raises
     if an old extraction exists, preserving it without silently reusing it.
+    Partial extractions remain loadable but are retried on the next extraction.
     """
     if max_fhr < 0:
         raise ValueError("max_fhr must be nonnegative")
@@ -110,7 +111,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     out_path = interim_dir(f"{store}/hrrr") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
     if out_path.exists() and not overwrite:
         cached = pd.read_parquet(out_path)
-        if cached.attrs.get("hrrr_request") == request:
+        if (cached.attrs.get("hrrr_request") == request
+                and cached.attrs.get("hrrr_complete") is True):
             return cached
 
     jobs = []
@@ -133,6 +135,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
 
     index = None
     rows = []
+    decoded = set()
     t0 = datetime(d.year, d.month, d.day, cycle)
     for fhr, blobs in results:
         if not blobs:
@@ -141,6 +144,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
             fields, grid = decode_messages(blob, with_grid=index is None)
             if not fields:
                 continue
+            decoded.add((fhr, name))
             if index is None:
                 index = PointIndex("hrrr", grid[0], grid[1],
                                    points["lat"].to_numpy(), points["lon"].to_numpy(),
@@ -166,6 +170,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     df = pd.concat(rows, ignore_index=True)
     df["var"] = df["var"].astype("category")
     df.attrs["hrrr_request"] = request
+    df.attrs["hrrr_complete"] = all(
+        (fhr, name) in decoded for fhr, wanted in jobs for name in wanted)
     df.to_parquet(out_path, index=False)
     return df
 
