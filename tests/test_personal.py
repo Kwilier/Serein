@@ -168,6 +168,49 @@ def test_study_summary_preserves_csv_integer_durations():
     pd.testing.assert_frame_equal(summarize_study(loaded), summarize_study(result))
 
 
+@pytest.mark.parametrize("column", ["brier", "true_or", "est_or", "or_lo", "or_hi"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf, True, "0.1", None])
+def test_study_summary_rejects_invalid_numeric_results(column, value):
+    from serein.personal.simulate import run_study, summarize_study
+
+    loaded = run_study(n_children=2, n_days=6, eval_days=2, ks=(0, 2))
+    loaded[column] = loaded[column].astype(object)
+    loaded.loc[loaded.index[1], column] = value
+    before = loaded.copy(deep=True)
+    with pytest.raises(ValueError, match=column):
+        summarize_study(loaded)
+    pd.testing.assert_frame_equal(loaded, before)
+
+
+@pytest.mark.parametrize("column,value", [
+    ("brier", -0.1), ("brier", 1.1), ("true_or", 0),
+    ("est_or", -1), ("or_lo", 0), ("or_hi", -1),
+])
+def test_study_summary_rejects_out_of_range_results(column, value):
+    from serein.personal.simulate import run_study, summarize_study
+
+    loaded = run_study(n_children=1, n_days=6, eval_days=2, ks=(0, 2))
+    loaded.loc[loaded.index[1], column] = value
+    with pytest.raises(ValueError, match=column):
+        summarize_study(loaded)
+
+
+def test_study_summary_accepts_numeric_objects_and_brier_endpoints():
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=1, n_days=6, eval_days=2, ks=(0, 2))
+    result.loc[result["k"] == 0, "brier"] = 1.0
+    result.loc[result["k"] == 2, "brier"] = 0.0
+    loaded = result.copy(deep=True)
+    for column in ("brier", "true_or", "est_or", "or_lo", "or_hi"):
+        loaded[column] = loaded[column].astype(object)
+    before = loaded.copy(deep=True)
+    summary = summarize_study(loaded)
+    pd.testing.assert_frame_equal(summary, summarize_study(result))
+    assert summary.set_index("k").loc[2, "gain"] == 1.0
+    pd.testing.assert_frame_equal(loaded, before)
+
+
 def test_study_keeps_training_before_evaluation(monkeypatch):
     from serein.personal import simulate
 

@@ -161,6 +161,18 @@ def summarize_study(df: pd.DataFrame) -> pd.DataFrame:
     for column in ("child", "kind"):
         if d[column].isna().any():
             raise ValueError(f"study results contain missing {column} labels")
+    for column in ("brier", "true_or", "est_or", "or_lo", "or_hi"):
+        if not d[column].map(
+            lambda value: isinstance(value, Real) and not isinstance(value, (bool, np.bool_))
+            and np.isfinite(value)
+        ).all():
+            raise ValueError(f"study {column} must contain finite real numbers")
+        d[column] = d[column].astype(float)
+        if column == "brier":
+            if not d[column].between(0, 1).all():
+                raise ValueError("study brier must be between 0 and 1")
+        elif (d[column] <= 0).any():
+            raise ValueError(f"study {column} must be positive")
     durations = []
     for value in d["k"]:
         try:
