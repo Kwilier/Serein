@@ -8,6 +8,29 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+@pytest.mark.parametrize("source", ["hourly", "daily", "points"])
+def test_rolling_observations_reject_missing_point_identifiers(source):
+    day = date(2023, 8, 1)
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    daily = pd.DataFrame({"point_id": ["A"], "local_date": [day], "pm25_daily": [20.0]})
+    points = pd.DataFrame({"point_id": ["A"]})
+    frame, column = {"hourly": (hourly, "site_id"), "daily": (daily, "point_id"),
+                     "points": (points, "point_id")}[source]
+    frame.loc[0, column] = None
+    with pytest.raises(ValueError, match="missing point identifiers"):
+        _obs_features(hourly, daily, points, [day], Availability(), [0])
+
+
+def test_rolling_observations_reject_duplicate_output_points():
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    daily = pd.DataFrame(columns=["local_date", "point_id", "pm25_daily"])
+    points = pd.DataFrame({"point_id": ["A", "A"]})
+    with pytest.raises(ValueError, match="duplicate point identifiers"):
+        _obs_features(hourly, daily, points, [date(2023, 8, 1)], Availability(), [0])
+
+
 @pytest.mark.parametrize("missing", [None, pd.NaT, ""])
 def test_rolling_observations_reject_missing_timestamps(missing):
     hourly = pd.DataFrame({

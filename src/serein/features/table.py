@@ -37,6 +37,13 @@ def processed_dir(study: Study):
 
 def _obs_features(hourly: pd.DataFrame, daily: pd.DataFrame, points: pd.DataFrame,
                   days: list[date], av: Availability, leads: list[int]) -> pd.DataFrame:
+    for name, frame, column in (("hourly observations", hourly, "site_id"),
+                                ("daily observations", daily, "point_id"),
+                                ("points", points, "point_id")):
+        if frame[column].isna().any():
+            raise ValueError(f"{name} contain missing point identifiers")
+    if points["point_id"].duplicated().any():
+        raise ValueError("points contain duplicate point identifiers")
     ids = points["point_id"].tolist()
     h = hourly.rename(columns={"site_id": "point_id"})
     h["time_utc"] = pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.tz_localize(None)
