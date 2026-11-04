@@ -65,6 +65,35 @@ def test_clean_history_rejects_missing_sensor_identifiers(sensor):
     pd.testing.assert_frame_equal(frame, original)
 
 
+@pytest.mark.parametrize("stamp", [None, pd.NaT, "not a date", "2023-02-30"])
+def test_clean_history_rejects_invalid_observation_times(stamp):
+    frame = pd.DataFrame({
+        "time_utc": ["2023-07-01 00:00:00", stamp],
+        "sensor_index": [1, 1],
+        "pm2.5_cf_1_a": [10.0, 20.0],
+        "pm2.5_cf_1_b": [10.0, 20.0],
+        "humidity": [40.0, 40.0],
+    })
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="history time_utc"):
+        purpleair.clean_history(frame)
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_clean_history_preserves_valid_timezone_observation_times():
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=2, freq="h", tz="US/Pacific"),
+        "sensor_index": [1, 1],
+        "pm2.5_cf_1_a": [10.0, 20.0],
+        "pm2.5_cf_1_b": [10.0, 20.0],
+        "humidity": [40.0, 40.0],
+    })
+    original = frame.copy(deep=True)
+    result = purpleair.clean_history(frame)
+    pd.testing.assert_series_equal(result["time_utc"], frame["time_utc"])
+    pd.testing.assert_frame_equal(frame, original)
+
+
 def test_clean_history_preserves_row_alignment_with_duplicate_indices():
     frame = pd.DataFrame({
         "time_utc": pd.date_range("2023-07-01", periods=4, freq="h"),

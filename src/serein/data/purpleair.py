@@ -269,6 +269,9 @@ def clean_history(df: pd.DataFrame) -> pd.DataFrame:
     """A/B QC + finite EPA corrections -> time_utc, sensor_index, pm25."""
     if df["sensor_index"].isna().any():
         raise ValueError("history sensor_index must not contain missing identifiers")
+    timestamps = pd.to_datetime(df["time_utc"], utc=True, errors="coerce", format="mixed")
+    if timestamps.isna().any():
+        raise ValueError("history time_utc must contain valid observation timestamps")
     mean, keep = qc_ab(df["pm2.5_cf_1_a"], df["pm2.5_cf_1_b"])
     humidity = df["humidity"].where(np.isfinite(df["humidity"]) & df["humidity"].between(0, 100))
     sensor_median = humidity.groupby(df["sensor_index"]).transform("median")
