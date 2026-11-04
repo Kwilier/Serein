@@ -500,3 +500,27 @@ def test_history_accepts_cached_utc_with_equivalent_timezone(history_client, tmp
     result = purpleair.download_history(1, start, end)
     pd.testing.assert_frame_equal(result, frame)
     assert len(history_client) == 1
+
+
+@pytest.mark.parametrize("order", [[0, 0, 1], [0, 1, 0], [1, 0]])
+def test_history_rejects_duplicate_or_unsorted_cached_rows(history_client, tmp_path, order):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=2)
+    frame = purpleair.download_history(1, start, end, max_days=1)
+    path = next(tmp_path.rglob("*.parquet"))
+    frame.iloc[order].to_parquet(path, index=False)
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="history cache time_stamp.*unique.*sorted"):
+        purpleair.download_history(1, start, end, max_days=1)
+    assert len(history_client) == 2
+    assert path.read_bytes() == original
+
+
+def test_history_reuses_sorted_multirow_cache(history_client):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=3)
+    first = purpleair.download_history(1, start, end, max_days=1)
+    second = purpleair.download_history(1, start, end, max_days=1)
+    pd.testing.assert_frame_equal(first, second)
+    assert len(first) == 3
+    assert len(history_client) == 3

@@ -148,6 +148,9 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
             for stamp in cached["time_stamp"]
         ):
             raise ValueError("history cache time_stamp must contain whole seconds within the request")
+        if (not cached["time_stamp"].is_unique
+                or not cached["time_stamp"].is_monotonic_increasing):
+            raise ValueError("history cache time_stamp must be unique and sorted")
         expected = pd.to_datetime(cached["time_stamp"], unit="s", utc=True)
         actual = pd.to_datetime(cached["time_utc"], utc=True, errors="coerce", format="mixed")
         if not (actual == expected).all():
