@@ -1,7 +1,57 @@
 import numpy as np
 import pytest
 
-from serein.eval.metrics import interval_metrics
+from serein.eval.metrics import (
+    bootstrap_rmse_diff,
+    crps_from_quantiles,
+    interval_metrics,
+    point_metrics,
+)
+
+
+@pytest.mark.parametrize("pred,obs", [
+    (np.ones((2, 1)), np.ones(2)),
+    (np.ones((2, 1)), np.ones((2, 1))),
+    (np.ones(2), np.ones(3)),
+])
+def test_point_metrics_requires_matching_vectors(pred, obs):
+    with pytest.raises(ValueError, match="shape|one-dimensional"):
+        point_metrics(pred, obs)
+
+
+@pytest.mark.parametrize("dates", [np.arange(3), np.ones((2, 1))])
+def test_point_metrics_validates_dates_even_without_finite_predictions(dates):
+    with pytest.raises(ValueError, match="dates"):
+        point_metrics(np.full(2, np.nan), np.ones(2), dates)
+
+
+@pytest.mark.parametrize("bad_index", range(4))
+def test_bootstrap_requires_matching_vectors(bad_index):
+    inputs = [np.ones(6), np.ones(6), np.ones(6), np.arange(6)]
+    inputs[bad_index] = inputs[bad_index][:, None]
+    with pytest.raises(ValueError, match="shape|one-dimensional"):
+        bootstrap_rmse_diff(*inputs)
+
+
+@pytest.mark.parametrize("qs,levels,obs", [
+    (np.ones((2, 3)), [0.1, 0.5, 0.9], np.ones((2, 1))),
+    (np.ones((2, 3)), [0.1, 0.5, 0.9], np.ones(1)),
+    (np.ones((2, 3)), [0.5], np.ones(2)),
+    (np.ones(2), [0.5], np.ones(2)),
+    (np.ones((2, 0)), [], np.ones(2)),
+])
+def test_crps_rejects_shapes_that_would_broadcast(qs, levels, obs):
+    with pytest.raises(ValueError, match="shape|quantile"):
+        crps_from_quantiles(qs, levels, obs)
+
+
+def test_scoring_accepts_lists_and_preserves_row_order():
+    assert point_metrics([2., 5.], [1., 3.])["mae"] == 1.5
+    np.testing.assert_allclose(
+        crps_from_quantiles([[2., 2., 2.], [5., 5., 5.]], [0.1, 0.5, 0.9], [1., 3.]),
+        [1., 2.],
+    )
+    assert crps_from_quantiles(np.empty((0, 3)), [0.1, 0.5, 0.9], []).shape == (0,)
 
 
 def test_interval_metrics_rejects_reversed_bounds():

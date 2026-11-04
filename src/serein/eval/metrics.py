@@ -20,6 +20,13 @@ from serein.aqi import USG_THRESHOLD, pm25_to_category
 
 
 def point_metrics(pred, obs, dates=None) -> dict:
+    pred, obs = np.asarray(pred), np.asarray(obs)
+    if pred.ndim != 1 or obs.ndim != 1 or pred.shape != obs.shape:
+        raise ValueError("predictions and observations must have the same one-dimensional shape")
+    if dates is not None:
+        dates = np.asarray(dates)
+        if dates.shape != obs.shape:
+            raise ValueError("dates must have the same shape as observations")
     ok = np.isfinite(pred) & np.isfinite(obs)
     p, o = pred[ok], obs[ok]
     if len(o) == 0:
@@ -52,7 +59,11 @@ def point_metrics(pred, obs, dates=None) -> dict:
 
 def crps_from_quantiles(qs: np.ndarray, levels, obs: np.ndarray) -> np.ndarray:
     """Approximate CRPS = 2 * mean pinball loss over quantile levels. qs [rows, Q]."""
-    lv = np.asarray(levels)[None, :]
+    qs, levels, obs = np.asarray(qs), np.asarray(levels), np.asarray(obs)
+    if (qs.ndim != 2 or obs.ndim != 1 or levels.ndim != 1
+            or qs.shape != (obs.size, levels.size) or levels.size == 0):
+        raise ValueError("quantile shape must be [rows, levels] with one observation per row")
+    lv = levels[None, :]
     d = obs[:, None] - qs
     return 2 * np.mean(np.maximum(lv * d, (lv - 1) * d), axis=1)
 
@@ -73,6 +84,9 @@ def interval_metrics(lo, hi, obs) -> dict:
 def bootstrap_rmse_diff(pred_a, pred_b, obs, dates, n_boot: int = 1000, seed: int = 0) -> dict:
     """95% CI for RMSE(a) - RMSE(b), resampling whole DAYS (errors on one day are
     correlated across sites, so resampling rows would overstate confidence)."""
+    pred_a, pred_b, obs, dates = map(np.asarray, (pred_a, pred_b, obs, dates))
+    if (obs.ndim != 1 or any(a.shape != obs.shape for a in (pred_a, pred_b, dates))):
+        raise ValueError("predictions, observations and dates must have the same one-dimensional shape")
     ok = np.isfinite(pred_a) & np.isfinite(pred_b) & np.isfinite(obs)
     a2, b2 = (pred_a[ok] - obs[ok]) ** 2, (pred_b[ok] - obs[ok]) ** 2
     dd = np.asarray(dates)[ok]
