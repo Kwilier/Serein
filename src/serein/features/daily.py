@@ -25,11 +25,16 @@ def add_local_date(df: pd.DataFrame, offsets: pd.Series, time_col: str = "time_u
 
 def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
                     min_hours: int = MIN_HOURS_DAILY) -> pd.DataFrame:
-    """Daily mean PM2.5; require min_hours finite observations per local day."""
+    """Daily mean PM2.5; require min_hours distinct finite hours per local day.
+
+    Repeated site/timestamp readings are averaged before daily aggregation so
+    each hour has equal weight and counts only once toward completeness.
+    """
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
-    h = add_local_date(h, offsets)
     h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
+    h = h.groupby(["point_id", "time_utc"], as_index=False)["pm25"].mean()
+    h = add_local_date(h, offsets)
     g = h.groupby(["point_id", "local_date"])["pm25"].agg(
         mean="mean", size="count").reset_index()
     g.loc[g["size"] < min_hours, "mean"] = np.nan

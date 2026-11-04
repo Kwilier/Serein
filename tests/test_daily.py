@@ -7,6 +7,41 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("hours", [17, 18])
+def test_observation_duplicates_do_not_inflate_daily_coverage(hours):
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": pd.date_range("2023-08-01 08:00", periods=hours, freq="h"),
+        "pm25": 10.0,
+    })
+    hourly = pd.concat([hourly, hourly.iloc[[0]]], ignore_index=True)
+    original = hourly.copy(deep=True)
+    row = obs_daily_means(hourly, pd.Series({"A": -8})).iloc[0]
+    assert row["n_hours"] == hours
+    if hours < 18:
+        assert np.isnan(row["pm25_daily"])
+    else:
+        assert row["pm25_daily"] == pytest.approx(10.0)
+    pd.testing.assert_frame_equal(hourly, original)
+
+
+def test_observation_daily_mean_weights_unique_timestamps_equally():
+    hourly = pd.DataFrame({
+        "site_id": ["A", "A", "A", "A", "A", "B"],
+        "time_utc": pd.to_datetime([
+            "2023-08-01 08:00", "2023-08-01 08:00", "2023-08-01 09:00",
+            "2023-08-01 09:00", "2023-08-02 08:00", "2023-08-01 08:00",
+        ]),
+        "pm25": [10.0, 30.0, 40.0, np.inf, 80.0, 100.0],
+    })
+    result = obs_daily_means(hourly, pd.Series({"A": -8, "B": -8}), min_hours=1)
+    rows = result.set_index(["point_id", "local_date"])
+    assert rows.loc[("A", date(2023, 8, 1)), "pm25_daily"] == pytest.approx(30.0)
+    assert rows.loc[("A", date(2023, 8, 1)), "n_hours"] == 2
+    assert rows.loc[("A", date(2023, 8, 2)), "pm25_daily"] == pytest.approx(80.0)
+    assert rows.loc[("B", date(2023, 8, 1)), "pm25_daily"] == pytest.approx(100.0)
+
+
 @pytest.mark.parametrize("invalid", [np.inf, -np.inf])
 @pytest.mark.parametrize("valid_hours", [17, 18])
 def test_observation_completeness_excludes_infinite_readings(invalid, valid_hours):
