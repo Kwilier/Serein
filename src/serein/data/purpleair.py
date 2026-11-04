@@ -144,6 +144,9 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
                 params["start_timestamp"], params["end_timestamp"]
             ).all():
                 raise ValueError("history time_stamp must be within the requested chunk")
+            missing = set(fields) - set(part.columns)
+            if missing:
+                raise ValueError(f"history response missing requested fields: {sorted(missing)}")
             parts.append(part)
         t = t1
         time.sleep(pause_s)

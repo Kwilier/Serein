@@ -80,8 +80,9 @@ def history_client(monkeypatch, tmp_path):
             self.params = params
 
         def json(self):
-            return {"fields": ["time_stamp", "humidity"],
-                    "data": [[self.params["start_timestamp"], 40.0]]}
+            fields = self.params["fields"].split(",")
+            return {"fields": ["time_stamp", *fields],
+                    "data": [[self.params["start_timestamp"], *([40.0] * len(fields))]]}
 
     def get(url, *, headers, params):
         calls.append(params.copy())
@@ -140,12 +141,27 @@ def test_history_merges_overlapping_chunks_in_time_order(history_client, monkeyp
             return next(responses)
 
     monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
-    result = purpleair.download_history(1, start, end, max_days=1)
+    result = purpleair.download_history(1, start, end, max_days=1, fields=["humidity"])
     assert result["time_stamp"].tolist() == [
         int(start.timestamp()), int(boundary.timestamp()), int(end.timestamp())]
     assert result["humidity"].tolist() == [40.0, 35.0, 50.0]
     pd.testing.assert_frame_equal(
-        result, purpleair.download_history(1, start, end, max_days=1))
+        result, purpleair.download_history(1, start, end, max_days=1, fields=["humidity"]))
+
+
+@pytest.mark.parametrize("missing", purpleair.HISTORY_FIELDS)
+def test_history_rejects_missing_requested_measurements(
+        history_client, monkeypatch, tmp_path, missing):
+    class Response:
+        def json(self):
+            fields = ["time_stamp", *[f for f in purpleair.HISTORY_FIELDS if f != missing]]
+            return {"fields": fields, "data": [[1688169600, 40.0, 40.0]]}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="missing requested fields"):
+        purpleair.download_history(1, start, start + timedelta(days=1))
+    assert not list(tmp_path.rglob("*.parquet"))
 
 
 @pytest.mark.parametrize("stamp", [None, np.nan, np.inf, "invalid", True, 1688169600.5])
