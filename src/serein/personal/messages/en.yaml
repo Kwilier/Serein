@@ -8,6 +8,7 @@ day_labels:
   today: today
   tomorrow: tomorrow
   day_after: the day after tomorrow
+  day_plus3: in three days
 
 categories:
   Good: Good

@@ -48,6 +48,11 @@ uv run streamlit run app/streamlit_app.py             # demo app; uses the sampl
 ```
 Check: the first command prints a green and a red action plan; the second opens a map in the browser.
 
+The family-plan tab uses a synthetic child and simulated symptom history, including when
+you change the number of history days. Daily check-ins are a separate demonstration:
+use fictional entries only. They are held in memory on the app server for the session,
+with CSV export and a **Clear session log** button; they are not saved to a database.
+
 ### Step 5 (optional). Download the data and train models
 Only needed for tasks that train or score models (most A, B and D tasks).
 - `./scripts/download_all.sh` pulls 5 fire seasons of free public data. About 2-3 hours, roughly 150 GB downloaded, about 2.2 GB kept on disk. No API keys needed.
@@ -348,7 +353,7 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 | C-7a | Spanish wording aligned with EPA's official Spanish AQI names and CDC asthma terms | Done | Aadi-Tiwari | 2026-11-01 |
 | C-7 | **(non-code)** Native-speaker review of `src/serein/personal/messages/es.yaml`; later Chinese, Vietnamese, Tagalog, Hindi/Punjabi | Open | | |
 | C-8 | **(non-code)** Pediatric pulmonologist, asthma educator or school nurse reviews action-plan wording and the priors table (includes C-5b). Record their feedback | Open | | |
-| C-9 | Daily check-in: 6 taps (`serein/personal/log.py`) + "Daily check-in" tab in the app; kept only in the browser session | Done | Aadi-Tiwari | 2026-11-01 |
+| C-9 | Daily check-in: 6 taps (`serein/personal/log.py`) + "Daily check-in" tab in the app; fictional entries held in server memory for the session, with CSV export and a clear-log button | Done | Aadi-Tiwari | 2026-11-01 |
 | C-10 | Confounders in the child model: ozone (prior from Strickland 2010), hot day and high-pollen day (wide "no effect" priors), next to the existing cold/virus term. They never trigger a smoke warning on their own (`docs/METHODS.md#priors`) | Done | Aadi-Tiwari | 2026-11-02 |
 | C-10b | Feed real values into plans: AQM ozone and HRRR max temperature from the forecast; a "high pollen today?" box in the app check-in | Open | | |
 | C-11 | More languages in `messages/` (only after C-7 sets the review process) | Open | | |
@@ -417,7 +422,9 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 - Serein is **not a medical device** and doesn't replace a doctor's asthma action plan. Every plan says so.
 - No real child's data is used without written parental consent. Development uses **synthetic children** only. See [docs/ETHICS.md](docs/ETHICS.md).
 - Health messages are **never** machine-translated without native-speaker review.
-- All data stays local; no personal health data is uploaded anywhere.
+- The demo accepts fictional check-ins only. Entries are held in app-server memory for
+  the session, with no database storage. Hosting the app remotely sends entries to that
+  server; running it locally keeps the server on your computer.
 
 ## License
 

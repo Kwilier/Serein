@@ -24,13 +24,17 @@ from serein.personal.model import FEATURES, ChildModel, PopulationPrior, design_
 # ------------------------------------------------------------------ smoke season
 def simulate_pm_season(n_days: int = 150, seed: int = 0) -> np.ndarray:
     """Daily PM2.5: clean background (AR(1) around ~7 µg/m³) plus smoke episodes."""
+    if (isinstance(n_days, (bool, np.bool_))
+            or not isinstance(n_days, Integral) or n_days < 1):
+        raise ValueError("n_days must be a positive integer")
     rng = np.random.default_rng(seed)
     z = np.zeros(n_days)
     for t in range(1, n_days):
         z[t] = 0.7 * z[t - 1] + rng.normal(0, 0.25)
     pm = 7.0 * np.exp(z)
     for _ in range(rng.poisson(3) + 1):
-        start = rng.integers(0, n_days - 3)
+        # Short demo histories still need a valid start; preserve longer seasons' draws.
+        start = rng.integers(0, max(1, n_days - 3))
         length = rng.integers(2, 11)
         peak = rng.choice([25, 45, 80, 150, 250], p=[0.3, 0.3, 0.2, 0.15, 0.05])
         shape = np.sin(np.linspace(0, np.pi, length)) ** 0.7

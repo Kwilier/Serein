@@ -10,6 +10,7 @@ day_labels:
   today: hoy
   tomorrow: mañana
   day_after: pasado mañana
+  day_plus3: dentro de tres días
 
 categories:
   Good: Bueno
