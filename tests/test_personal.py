@@ -392,6 +392,20 @@ def test_study_summary_rejects_duplicate_child_durations(duration):
     pd.testing.assert_frame_equal(loaded, original)
 
 
+@pytest.mark.parametrize("column", ["child", "kind"])
+@pytest.mark.parametrize("missing", [None, np.nan])
+def test_study_summary_rejects_missing_child_labels(column, missing):
+    from serein.personal.simulate import run_study, summarize_study
+
+    loaded = run_study(n_children=2, n_days=8, eval_days=3, ks=(0, 2), seed=4)
+    loaded[column] = loaded[column].astype(object)
+    loaded.loc[loaded["child"] == 0, column] = missing
+    original = loaded.copy(deep=True)
+    with pytest.raises(ValueError, match=f"missing {column}"):
+        summarize_study(loaded)
+    pd.testing.assert_frame_equal(loaded, original)
+
+
 def test_log_joins_with_pm_and_fits():
     from datetime import date, timedelta
 

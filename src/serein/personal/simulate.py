@@ -158,6 +158,9 @@ def run_study(n_children: int = 300, n_days: int = 150, eval_days: int = 50,
 def summarize_study(df: pd.DataFrame) -> pd.DataFrame:
     """Summarize learning curves, requiring a k=0 baseline for every scored child."""
     d = df[df["k"] != "oracle"].copy()
+    for column in ("child", "kind"):
+        if d[column].isna().any():
+            raise ValueError(f"study results contain missing {column} labels")
     durations = []
     for value in d["k"]:
         try:
