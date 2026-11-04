@@ -21,6 +21,12 @@ from dataclasses import dataclass, field
 import numpy as np
 
 
+def _validate_shapes(*arrays):
+    shape = arrays[0].shape
+    if len(shape) != 2 or any(array.shape != shape for array in arrays[1:]):
+        raise ValueError("Calibration arrays must have the same [rows, leads] shape")
+
+
 def _qhat(scores: np.ndarray, alpha: float) -> float:
     s = scores[np.isfinite(scores)]
     n = len(s)
@@ -41,6 +47,7 @@ class CQR:
 
     def fit(self, lo, hi, median, y) -> CQR:
         """Arrays [rows, L] in log1p space."""
+        _validate_shapes(lo, hi, median, y)
         L = lo.shape[1]
         self.qhat.clear()
         for lead in range(L):
@@ -55,6 +62,7 @@ class CQR:
         return self
 
     def apply(self, lo, hi, median):
+        _validate_shapes(lo, hi, median)
         lo2 = lo.astype(np.result_type(lo.dtype, np.float32), copy=True)
         hi2 = hi.astype(np.result_type(hi.dtype, np.float32), copy=True)
         n_groups = len(self.bins) + 1

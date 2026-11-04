@@ -1,6 +1,34 @@
 import numpy as np
+import pytest
 
 from serein.models.conformal import CQR, _qhat
+
+
+@pytest.mark.parametrize("index", range(4))
+@pytest.mark.parametrize("shape", [(1, 2), (3, 1), (3,), (3, 2, 1)])
+def test_fit_rejects_mismatched_shapes_without_changing_calibration(index, shape):
+    arrays = [np.zeros((3, 2)) for _ in range(4)]
+    arrays[index] = np.zeros(shape)
+    model = CQR(qhat={(0, -1): 0.75})
+    with pytest.raises(ValueError, match="shape"):
+        model.fit(*arrays)
+    assert model.qhat == {(0, -1): 0.75}
+
+
+@pytest.mark.parametrize("index", range(3))
+@pytest.mark.parametrize("shape", [(1, 2), (3, 1), (3,), (3, 2, 1)])
+def test_apply_rejects_mismatched_shapes(index, shape):
+    arrays = [np.zeros((3, 2)) for _ in range(3)]
+    arrays[index] = np.zeros(shape)
+    with pytest.raises(ValueError, match="shape"):
+        CQR().apply(*arrays)
+
+
+def test_calibration_accepts_empty_row_batches():
+    empty = np.empty((0, 2))
+    model = CQR().fit(empty, empty, empty, empty)
+    lower, upper = model.apply(empty, empty, empty)
+    assert lower.shape == upper.shape == (0, 2)
 
 
 def test_calibration_uses_finite_sample_order_statistic():
