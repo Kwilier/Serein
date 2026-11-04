@@ -38,6 +38,11 @@ def build_knn_graph(lat, lon, k: int = 10, max_km: float = 300.0) -> Graph:
     if not np.isfinite(max_km) or max_km <= 0:
         raise ValueError("max_km must be finite and positive")
     lat, lon = np.asarray(lat, float), np.asarray(lon, float)
+    if (lat.ndim != 1 or lon.shape != lat.shape
+            or not np.isfinite(lat).all() or not np.isfinite(lon).all()
+            or (np.abs(lat) > 90).any() or (np.abs(lon) > 180).any()):
+        raise ValueError("Graph coordinates must be matching one-dimensional arrays of finite "
+                         "latitudes in [-90, 90] and longitudes in [-180, 180]")
     xyz = np.stack([np.cos(np.radians(lat)) * np.cos(np.radians(lon)),
                     np.cos(np.radians(lat)) * np.sin(np.radians(lon)),
                     np.sin(np.radians(lat))], 1)

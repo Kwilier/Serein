@@ -34,3 +34,22 @@ def test_graph_rejects_invalid_neighbor_count(k):
 def test_graph_rejects_invalid_distance_limit(max_km):
     with pytest.raises(ValueError, match="max_km must be finite and positive"):
         build_knn_graph([38.0, 38.0], [-122.0, -122.0], max_km=max_km)
+
+
+@pytest.mark.parametrize("lat, lon", [
+    ([91.0], [0.0]), ([-91.0], [0.0]),
+    ([0.0], [181.0]), ([0.0], [-181.0]),
+    ([np.nan], [0.0]), ([0.0], [np.inf]),
+    ([38.0, 39.0], [-122.0]),
+    ([[38.0]], [[-122.0]]), (38.0, -122.0),
+])
+def test_graph_rejects_invalid_coordinates(lat, lon):
+    with pytest.raises(ValueError, match="coordinates"):
+        build_knn_graph(lat, lon)
+
+
+def test_graph_accepts_geographic_boundaries_and_links_across_dateline():
+    graph = build_knn_graph([0.0, 0.0, -90.0, 90.0],
+                            [-179.9, 179.9, -180.0, 180.0], k=1, max_km=30.0)
+    assert set(zip(graph.src, graph.dst)) == {(0, 1), (1, 0)}
+    assert np.all((graph.dist_km > 20) & (graph.dist_km < 25))
