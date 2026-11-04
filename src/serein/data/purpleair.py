@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from numbers import Integral
+from numbers import Integral, Real
 
 import numpy as np
 import pandas as pd
@@ -126,7 +126,14 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         r = get(f"{API}/sensors/{sensor_index}/history", headers=_headers(), params=params)
         js = r.json()
         if js.get("data"):
-            parts.append(pd.DataFrame(js["data"], columns=js["fields"]))
+            part = pd.DataFrame(js["data"], columns=js["fields"])
+            if "time_stamp" not in part or not all(
+                isinstance(stamp, Real) and not isinstance(stamp, (bool, np.bool_))
+                and math.isfinite(stamp) and stamp == int(stamp)
+                for stamp in part["time_stamp"]
+            ):
+                raise ValueError("history time_stamp must contain finite whole-second timestamps")
+            parts.append(part)
         t = t1
         time.sleep(pause_s)
     if not parts:

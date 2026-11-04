@@ -148,6 +148,31 @@ def test_history_merges_overlapping_chunks_in_time_order(history_client, monkeyp
         result, purpleair.download_history(1, start, end, max_days=1))
 
 
+@pytest.mark.parametrize("stamp", [None, np.nan, np.inf, "invalid", True, 1688169600.5])
+def test_history_rejects_invalid_response_timestamps(history_client, monkeypatch, tmp_path, stamp):
+    class Response:
+        def json(self):
+            return {"fields": ["time_stamp", "humidity"], "data": [[stamp, 40.0]]}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="time_stamp"):
+        purpleair.download_history(1, start, start + timedelta(days=1))
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
+def test_history_rejects_missing_response_timestamp(history_client, monkeypatch, tmp_path):
+    class Response:
+        def json(self):
+            return {"fields": ["humidity"], "data": [[40.0]]}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="time_stamp"):
+        purpleair.download_history(1, start, start + timedelta(days=1))
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
 @pytest.mark.parametrize("kwargs", [
     {"max_days": 0}, {"max_days": -1}, {"average_minutes": 0}, {"average_minutes": -1},
 ])
