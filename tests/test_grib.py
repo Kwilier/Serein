@@ -4,6 +4,58 @@ import pytest
 from serein.data import grib
 
 
+@pytest.mark.parametrize("operation", [
+    "codes_get_values", "codes_get_double", "codes_get_long", "codes_get_array",
+])
+def test_decode_releases_native_handle_after_read_failure(monkeypatch, operation):
+    handle = object()
+    released = []
+    failure = RuntimeError("native read failed")
+    blob = b"GRIB\0\0\0\2" + (20).to_bytes(8, "big") + b"7777"
+    monkeypatch.setattr(grib.eccodes, "codes_new_from_message", lambda message: handle)
+    monkeypatch.setattr(grib.eccodes, "codes_get_values", lambda h: np.array([12.0]))
+    monkeypatch.setattr(grib.eccodes, "codes_get_double", lambda h, key: 9999.0)
+    monkeypatch.setattr(grib.eccodes, "codes_get_long", lambda h, key: 0)
+    monkeypatch.setattr(grib.eccodes, "codes_get_array", lambda h, key: np.array([0.0]))
+    monkeypatch.setattr(grib.eccodes, "codes_release", released.append)
+
+    def fail(h, *args):
+        assert h is handle
+        raise failure
+
+    monkeypatch.setattr(grib.eccodes, operation, fail)
+    with pytest.raises(RuntimeError) as error:
+        grib.decode_messages(blob + blob, with_grid=True)
+    assert error.value is failure
+    assert released == [handle]
+
+
+def test_decode_releases_each_native_handle_before_next_message(monkeypatch):
+    blob = b"GRIB\0\0\0\2" + (20).to_bytes(8, "big") + b"7777"
+    handles = [object(), object()]
+    opened, released = [], []
+
+    def open_message(message):
+        assert message == blob
+        assert released == opened
+        handle = handles[len(opened)]
+        opened.append(handle)
+        return handle
+
+    monkeypatch.setattr(grib.eccodes, "codes_new_from_message", open_message)
+    monkeypatch.setattr(grib.eccodes, "codes_get_values", lambda h: np.array([12.0]))
+    monkeypatch.setattr(grib.eccodes, "codes_get_double", lambda h, key: 9999.0)
+    monkeypatch.setattr(grib.eccodes, "codes_get_long", lambda h, key: 0)
+    monkeypatch.setattr(grib.eccodes, "codes_get_string", lambda h, key: "")
+    monkeypatch.setattr(grib.eccodes, "codes_release", released.append)
+    fields, grid = grib.decode_messages(blob + blob)
+    assert len(fields) == 2
+    assert grid is None
+    assert released == handles
+    for field in fields:
+        np.testing.assert_array_equal(field.values, [12.0])
+
+
 @pytest.mark.parametrize("blob", [
     b"GRIB",
     b"GRIB\0\0\0\2" + (40).to_bytes(8, "big") + b"7777",
