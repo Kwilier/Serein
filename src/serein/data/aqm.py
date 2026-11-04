@@ -20,7 +20,12 @@ import numpy as np
 import pandas as pd
 
 from serein.config import interim_dir
-from serein.data.grib import PointIndex, decode_messages, validate_point_coordinates
+from serein.data.grib import (
+    PointIndex,
+    decode_messages,
+    validate_point_coordinates,
+    validate_point_ids,
+)
 from serein.http import get
 
 BUCKET = "https://noaa-nws-naqfc-pds.s3.amazonaws.com"
@@ -51,6 +56,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
     preserving it without silently reusing it.
     """
     validate_point_coordinates(points["lat"], points["lon"])
+    validate_point_ids(points["point_id"])
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
         points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
     tag = "bc" if bias_corrected else "raw"

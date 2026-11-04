@@ -27,6 +27,13 @@ def validate_point_coordinates(lat, lon):
                          "and longitudes in [-180, 180]")
 
 
+def validate_point_ids(ids):
+    """Keep sampled forecast rows unambiguous for each location."""
+    if (ids.isna().any() or ids.duplicated().any()
+            or ids.astype(str).str.strip().eq("").any()):
+        raise ValueError("Point identifiers must be unique, nonmissing, and nonblank")
+
+
 def _unit_xyz(lat, lon):
     lat = np.radians(np.asarray(lat, dtype=float))
     lon = np.radians(np.asarray(lon, dtype=float))

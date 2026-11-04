@@ -21,7 +21,12 @@ import numpy as np
 import pandas as pd
 
 from serein.config import interim_dir
-from serein.data.grib import PointIndex, decode_messages, validate_point_coordinates
+from serein.data.grib import (
+    PointIndex,
+    decode_messages,
+    validate_point_coordinates,
+    validate_point_ids,
+)
 from serein.http import get, get_range
 
 BUCKET = "https://noaa-hrrr-bdp-pds.s3.amazonaws.com"
@@ -96,6 +101,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     Missing samples within the grid are incomplete; points outside it are allowed.
     """
     validate_point_coordinates(points["lat"], points["lon"])
+    validate_point_ids(points["point_id"])
     if max_fhr < 0:
         raise ValueError("max_fhr must be nonnegative")
     if smoke_every <= 0:
