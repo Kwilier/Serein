@@ -185,6 +185,18 @@ def test_sms_segment_counting():
     assert sms_segments("€")[1] == 2   # extension table: 2 characters
 
 
+@pytest.mark.parametrize("text,expected", [
+    ("€" * 153, ("GSM-7", 306, 3)),
+    ("a" * 152 + "€" + "a" * 152, ("GSM-7", 306, 3)),
+    ("\U0001f600" * 67, ("UCS-2", 134, 3)),
+    ("\U0001f600" * 66, ("UCS-2", 132, 2)),
+])
+def test_sms_parts_keep_mult_unit_characters_together(text, expected):
+    from serein.personal.action_plan import sms_segments
+
+    assert sms_segments(text) == expected
+
+
 def test_confounders_raise_risk_but_never_trigger_a_smoke_warning():
     m = ChildModel()
     clean = {0.05: 3, 0.5: 5, 0.95: 8}

@@ -107,10 +107,21 @@ _GSM7_EXT = set("^{}\\[~]|€")  # each costs 2 characters
 def sms_segments(text: str) -> tuple[str, int, int]:
     """(encoding, length in that encoding, number of SMS parts the carrier bills)."""
     if all(c in _GSM7 or c in _GSM7_EXT for c in text):
-        n = sum(2 if c in _GSM7_EXT else 1 for c in text)
-        return "GSM-7", n, 1 if n <= 160 else -(-n // 153)
-    n = sum(2 if ord(c) > 0xFFFF else 1 for c in text)
-    return "UCS-2", n, 1 if n <= 70 else -(-n // 67)
+        encoding, single, capacity = "GSM-7", 160, 153
+        widths = [2 if c in _GSM7_EXT else 1 for c in text]
+    else:
+        encoding, single, capacity = "UCS-2", 70, 67
+        widths = [2 if ord(c) > 0xFFFF else 1 for c in text]
+    n = sum(widths)
+    parts, used = 1, 0
+    if n > single:
+        # Keep extension escapes and UTF-16 surrogate pairs in the same part.
+        for width in widths:
+            if used + width > capacity:
+                parts += 1
+                used = 0
+            used += width
+    return encoding, n, parts
 
 
 def render_sms(zone: str, child_name: str, day_label: str, pm_median: float,
