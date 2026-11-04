@@ -145,6 +145,29 @@ def test_study_summarizes_repeated_and_clamped_durations_once(ks):
     pd.testing.assert_frame_equal(summarize_study(result), summarize_study(expected))
 
 
+@pytest.mark.parametrize("duration", [1.5, -1, True, np.bool_(False), np.nan,
+                                     np.inf, None, "1.5", "unknown"])
+def test_study_summary_rejects_invalid_loaded_durations(duration):
+    from serein.personal.simulate import run_study, summarize_study
+
+    loaded = run_study(n_children=1, n_days=6, eval_days=2, ks=(0, 2))
+    loaded.loc[loaded["k"] == 2, "k"] = duration
+    before = loaded.copy(deep=True)
+    with pytest.raises(ValueError, match="nonnegative integer logging durations"):
+        summarize_study(loaded)
+    pd.testing.assert_frame_equal(loaded, before)
+
+
+def test_study_summary_preserves_csv_integer_durations():
+    from io import StringIO
+
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=2, n_days=6, eval_days=2, ks=(0, 2))
+    loaded = pd.read_csv(StringIO(result.to_csv(index=False)))
+    pd.testing.assert_frame_equal(summarize_study(loaded), summarize_study(result))
+
+
 def test_study_keeps_training_before_evaluation(monkeypatch):
     from serein.personal import simulate
 

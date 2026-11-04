@@ -12,7 +12,7 @@ where personal plans should beat one-size-fits-all advice.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from numbers import Integral
+from numbers import Integral, Real
 
 import numpy as np
 import pandas as pd
@@ -158,7 +158,18 @@ def run_study(n_children: int = 300, n_days: int = 150, eval_days: int = 50,
 def summarize_study(df: pd.DataFrame) -> pd.DataFrame:
     """Summarize learning curves, requiring a k=0 baseline for every scored child."""
     d = df[df["k"] != "oracle"].copy()
-    d["k"] = d["k"].astype(int)
+    durations = []
+    for value in d["k"]:
+        try:
+            if isinstance(value, (bool, np.bool_)) or not isinstance(value, (Real, str)):
+                raise TypeError
+            duration = int(value)
+            if duration < 0 or (not isinstance(value, str) and duration != value):
+                raise ValueError
+        except (ValueError, TypeError, OverflowError):
+            raise ValueError("study k must contain nonnegative integer logging durations") from None
+        durations.append(duration)
+    d["k"] = durations
     if d.duplicated(["child", "k"]).any():
         raise ValueError("duplicate child-duration rows in study results")
     pop = d[d["k"] == 0].set_index("child")["brier"]
