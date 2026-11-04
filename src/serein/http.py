@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import time
+from numbers import Integral
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -48,7 +49,9 @@ def get(url: str, *, headers: dict | None = None, params: dict | None = None,
 
 def get_range(url: str, start: int, end: int | None) -> bytes:
     """Download bytes [start, end] inclusive (end=None means to the end of file)."""
-    if start < 0 or (end is not None and end < start):
+    if (isinstance(start, bool) or not isinstance(start, Integral) or start < 0
+            or (end is not None and (isinstance(end, bool)
+                                     or not isinstance(end, Integral) or end < start))):
         raise ValueError("invalid byte range")
     rng = f"bytes={start}-" if end is None else f"bytes={start}-{end}"
     r = get(url, headers={"Range": rng}, timeout=120)

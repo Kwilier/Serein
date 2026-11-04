@@ -43,7 +43,10 @@ def test_get_range_rejects_incorrect_response(monkeypatch, status, body, header)
         http.get_range("https://example.test/data", 10, 13)
 
 
-@pytest.mark.parametrize("start, end", [(-1, 2), (5, 4)])
+@pytest.mark.parametrize("start, end", [
+    (-1, 2), (5, 4), (1.5, 3), (1, 3.5), (True, 3), (1, False),
+    ("1", 3), (1, "3"), (None, 3), (float("nan"), 3), (1, float("inf")),
+])
 def test_get_range_rejects_invalid_bounds_before_request(monkeypatch, start, end):
     def unexpected(*args, **kwargs):
         pytest.fail("invalid bounds must not make a request")
