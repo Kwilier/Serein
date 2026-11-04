@@ -23,7 +23,7 @@ use, night waking) and should be confirmed with a clinician (TODO C-8).
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import date
+from datetime import date, datetime
 from numbers import Integral
 from pathlib import Path
 
@@ -46,6 +46,8 @@ class CheckIn:
     missed_controller: bool  # False if took it OR has no controller
 
     def __post_init__(self):
+        if not isinstance(self.day, date) or isinstance(self.day, datetime):
+            raise TypeError("check-in day must be a calendar date")
         if not all(isinstance(value, (bool, np.bool_)) for value in
                    (self.night_wake, self.cold, self.missed_controller)):
             raise ValueError("check-in yes/no answers must be boolean")

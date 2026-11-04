@@ -7,6 +7,16 @@ from serein.personal.model import FEATURES, ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
+@pytest.mark.parametrize("day", [None, pd.NaT, np.nan, 0, True, "2023-07-01",
+                                 np.datetime64("2023-07-01"),
+                                 pd.Timestamp("2023-07-01T12:00:00Z")])
+def test_checkin_requires_calendar_date(day):
+    from serein.personal.log import CheckIn
+
+    with pytest.raises(TypeError, match="check-in day must be a calendar date"):
+        CheckIn(day, 0, 0, False, 1, False, False)
+
+
 @pytest.mark.parametrize("field", ["symptoms", "puffs_bucket", "outdoor"])
 @pytest.mark.parametrize("value", [True, np.bool_(False), 1.0, np.float64(1), 1 + 0j])
 def test_checkin_rejects_noninteger_category_answers(field, value):
