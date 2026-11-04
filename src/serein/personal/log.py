@@ -80,12 +80,13 @@ def to_frame(entries: list[CheckIn]) -> pd.DataFrame:
 def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarray]:
     """Join the log with OBSERVED daily PM2.5 near home -> (X, y) for ChildModel.fit.
 
+    Log days may be calendar dates or ISO date strings from save_local CSV files.
     pm_by_day: {date: µg/m³}. Missing or nonfinite PM on today or either prior day
     excludes the row.
     """
     X, y = [], []
     for r in log.itertuples():
-        d = r.day
+        d = date.fromisoformat(r.day) if isinstance(r.day, str) else r.day
         pm0 = pm_by_day.get(d)
         pm1 = pm_by_day.get(d - pd.Timedelta(days=1).to_pytimedelta())
         pm2 = pm_by_day.get(d - pd.Timedelta(days=2).to_pytimedelta())
