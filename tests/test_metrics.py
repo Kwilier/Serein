@@ -2,6 +2,7 @@ import warnings
 from datetime import date
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from serein.eval.metrics import (
@@ -188,3 +189,22 @@ def test_point_metrics_uses_each_days_aqi_scale():
     )
     assert result["cat_acc"] == 0.5
     assert result["n"] == 2
+
+
+@pytest.mark.parametrize("dates", [
+    np.array(["2024-05-06", "2024-05-05"], dtype="datetime64[D]"),
+    np.array(["2024-05-06", "2024-05-05"], dtype="datetime64[ns]"),
+    ["2024-05-06", "2024-05-05"],
+    pd.to_datetime(["2024-05-06", "2024-05-05"]),
+    [pd.Timestamp("2024-05-06"), pd.Timestamp("2024-05-05")],
+])
+def test_point_metrics_accepts_calendar_date_representations(dates):
+    result = point_metrics([10., 10.], [13., 13.], dates)
+    assert result["cat_acc"] == 0.5
+    assert result["cat_within1"] == 1.
+    assert result["n"] == 2
+
+
+def test_point_metrics_rejects_missing_date_strings():
+    with pytest.raises(ValueError, match="missing dates"):
+        point_metrics([10., 10.], [13., 13.], ["2024-05-06", "NaT"])
