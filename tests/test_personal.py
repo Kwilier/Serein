@@ -315,6 +315,27 @@ def test_forecast_risk_counts_the_smoky_tail():
     assert wide["hi"] > narrow["hi"]
 
 
+@pytest.mark.parametrize("name", [
+    "pm_lag1", "pm_lag2", "outdoor_frac", "cold", "missed",
+    "ozone_ppb", "hot_day", "high_pollen",
+])
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf, [0.0], "0"])
+def test_forecast_risk_rejects_invalid_context(name, value):
+    context = {"pm_lag1": 5, "pm_lag2": 5, "outdoor_frac": 0.3, "cold": 0, "missed": 0}
+    context[name] = value
+    with pytest.raises(ValueError, match="finite scalar"):
+        ChildModel().risk_under_forecast({0.5: 10}, **context)
+
+
+def test_forecast_risk_accepts_numpy_context_and_unknown_ozone():
+    model = ChildModel()
+    expected = model.risk_under_forecast({0.5: 10}, 5, 5, 0.3, 0, 0)
+    actual = model.risk_under_forecast(
+        {0.5: 10}, np.float64(5), np.int64(5), np.float64(0.3), False, False,
+        ozone_ppb=None, hot_day=np.int64(0), high_pollen=False)
+    assert actual == expected
+
+
 @pytest.mark.parametrize("n_samples", [0, -1, 1.5, True, np.nan, np.inf, "10"])
 @pytest.mark.parametrize("forecast", [False, True])
 def test_risk_rejects_invalid_sample_counts(n_samples, forecast):

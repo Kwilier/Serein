@@ -173,8 +173,14 @@ class ChildModel:
         pm_quantiles: {0.05: x, 0.5: y, 0.95: z} from SmokeCast.
         Probabilities must be inside (0, 1), with finite, nonnegative,
         nondecreasing concentrations. A single quantile is a point forecast.
+        Context inputs must be finite scalars; use None for unknown ozone.
         """
         _validate_sample_count(n_samples)
+        context = [pm_lag1, pm_lag2, outdoor_frac, cold, missed, hot_day, high_pollen]
+        if ozone_ppb is not None:
+            context.append(ozone_ppb)
+        if any(not isinstance(v, (Real, np.bool_)) or not np.isfinite(v) for v in context):
+            raise ValueError("forecast context inputs must be finite scalars")
         if not pm_quantiles or any(
             isinstance(q, (bool, np.bool_)) or not isinstance(q, Real)
             or not np.isfinite(q) or not 0 < q < 1
