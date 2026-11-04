@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import os
 from datetime import date, datetime, timedelta
+from hashlib import sha256
 
 import numpy as np
 import pandas as pd
@@ -49,12 +50,13 @@ def download_range(start: date, end: date, region: Region, nrt: bool = False) ->
     sources = SOURCES_NRT if nrt else SOURCES_SP
     # Pad the box so smoke from fires just outside the region is counted.
     box = f"{region.lon_min - 5},{region.lat_min - 5},{region.lon_max + 5},{region.lat_max + 5}"
+    box_key = sha256(box.encode("ascii")).hexdigest()[:16]
     parts = []
     d = start
     while d <= end:
         n = min(MAX_DAYS_PER_CALL, (end - d).days + 1)
         for src in sources:
-            path = raw_dir("firms") / f"{src}_{d:%Y%m%d}_{n}d.parquet"
+            path = raw_dir("firms") / f"{src}_{d:%Y%m%d}_{n}d_{box_key}.parquet"
             if path.exists():
                 parts.append(pd.read_parquet(path))
                 continue
