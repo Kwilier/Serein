@@ -19,7 +19,7 @@ def add_local_date(df: pd.DataFrame, offsets: pd.Series, time_col: str = "time_u
                    id_col: str = "point_id") -> pd.DataFrame:
     """Apply fixed standard-time offsets; naive timestamps are interpreted as UTC."""
     off = df[id_col].map(offsets)
-    utc = pd.to_datetime(df[time_col], utc=True).dt.tz_localize(None)
+    utc = pd.to_datetime(df[time_col], utc=True, format="mixed").dt.tz_localize(None)
     local = utc + pd.to_timedelta(off, unit="h")
     df = df.assign(local_date=local.dt.date, _off=off)
     return df
@@ -34,6 +34,7 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
     """
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
+    h = h.assign(time_utc=pd.to_datetime(h["time_utc"], utc=True, format="mixed"))
     h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
     h = h.groupby(["point_id", "time_utc"], as_index=False)["pm25"].mean()
     h = add_local_date(h, offsets)
@@ -51,6 +52,7 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
     Repeated values at a timestamp are averaged within each forecast group first.
     """
     d = df.copy()
+    d["valid_utc"] = pd.to_datetime(d["valid_utc"], utc=True, format="mixed")
     d[value_col] = d[value_col].where(np.isfinite(d[value_col]))
     timestamp_keys = ["issue_date", "point_id", *group_extra, "valid_utc"]
     d = d.groupby(timestamp_keys, observed=True, as_index=False)[value_col].mean()

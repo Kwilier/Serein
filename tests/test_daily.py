@@ -7,6 +7,30 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("kind,hours", [("obs", 17), ("forecast", 11)])
+def test_equivalent_timestamp_strings_count_as_one_hour(kind, hours):
+    times = pd.date_range("2023-08-01 08:00", periods=hours, freq="h")
+    strings = [t.isoformat() for t in times] + ["2023-08-01T01:00:00-07:00"]
+    offsets = pd.Series({"A": -8})
+    values = [10.0] * hours + [30.0]
+    if kind == "obs":
+        frame = pd.DataFrame({"site_id": "A", "time_utc": strings, "pm25": values})
+        row = obs_daily_means(frame, offsets).iloc[0]
+        assert row["n_hours"] == hours
+        assert np.isnan(row["pm25_daily"])
+        complete = obs_daily_means(frame, offsets, min_hours=1).iloc[0]
+        assert complete["pm25_daily"] == pytest.approx((20 + 10 * (hours - 1)) / hours)
+    else:
+        frame = pd.DataFrame({"point_id": "A", "valid_utc": strings, "value": values,
+                              "issue_date": date(2023, 8, 1)})
+        row = model_daily(frame, offsets).iloc[0]
+        assert row["size"] == hours
+        assert np.isnan(row["mean"]) and np.isnan(row["max"])
+        complete = model_daily(frame, offsets, min_count=1).iloc[0]
+        assert complete["mean"] == pytest.approx((20 + 10 * (hours - 1)) / hours)
+        assert complete["max"] == 20.0
+
+
 @pytest.mark.parametrize("zone", ["UTC", "America/Los_Angeles", "Asia/Kolkata"])
 def test_daily_aggregation_uses_utc_instants_before_standard_time_offset(zone):
     times = pd.date_range("2023-08-01 08:00", periods=24, freq="h")
