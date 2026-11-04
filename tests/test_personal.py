@@ -134,6 +134,17 @@ def test_study_rejects_invalid_splits_before_simulation(monkeypatch, settings):
         simulate.run_study(**settings)
 
 
+@pytest.mark.parametrize("ks", [(0, 0, 2, 2, 100), (0, 2, 4, 10, 100)])
+def test_study_summarizes_repeated_and_clamped_durations_once(ks):
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=2, n_days=6, eval_days=2, ks=ks, seed=0)
+    expected = run_study(n_children=2, n_days=6, eval_days=2, ks=(0, 2, 4), seed=0)
+    assert not result.duplicated(["child", "k"]).any()
+    pd.testing.assert_frame_equal(result, expected)
+    pd.testing.assert_frame_equal(summarize_study(result), summarize_study(expected))
+
+
 def test_study_keeps_training_before_evaluation(monkeypatch):
     from serein.personal import simulate
 

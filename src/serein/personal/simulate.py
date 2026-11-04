@@ -109,6 +109,8 @@ def run_study(n_children: int = 300, n_days: int = 150, eval_days: int = 50,
     Scores on the LAST ``eval_days`` days (never used for fitting), using the
     smoke FORECAST (with error), as it would be live.
     k=0 is the one-size-fits-all population model. 'oracle' knows the true β.
+    Durations above the fitting window use all available fitting days; each
+    effective duration is scored once, in first-requested order.
     """
     for name, value, minimum in (("n_children", n_children, 1), ("n_days", n_days, 4),
                                  ("eval_days", eval_days, 1)):
@@ -120,6 +122,7 @@ def run_study(n_children: int = 300, n_days: int = 150, eval_days: int = 50,
     if not ks or any(isinstance(k, (bool, np.bool_)) or not isinstance(k, Integral) or k < 0
                      for k in ks):
         raise ValueError("ks must contain nonnegative integer logging durations")
+    ks = tuple(dict.fromkeys(min(k, n_days - eval_days) for k in ks))
     kids = simulate_children(n_children, seed)
     rows = []
     for i, kid in enumerate(kids):
@@ -131,7 +134,6 @@ def run_study(n_children: int = 300, n_days: int = 150, eval_days: int = 50,
         Xo = design_row(ev["pm"], ev["lag1"], ev["lag2"], ev["outdoor"], ev["cold"], ev["missed"])
         oracle_p = sigmoid(Xo @ kid.beta)
         for k in ks:
-            k = min(k, len(fit_part))
             m = ChildModel(PopulationPrior())
             if k > 0:
                 f = fit_part.iloc[:k]
