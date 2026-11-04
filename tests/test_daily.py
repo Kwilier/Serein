@@ -7,6 +7,42 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("invalid", [np.inf, -np.inf])
+@pytest.mark.parametrize("valid_hours", [17, 18])
+def test_observation_completeness_excludes_infinite_readings(invalid, valid_hours):
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": pd.date_range("2023-08-01 08:00", periods=24, freq="h"),
+        "pm25": [10.0] * valid_hours + [invalid] * (24 - valid_hours),
+    })
+    row = obs_daily_means(hourly, pd.Series({"A": -8})).iloc[0]
+    assert row["n_hours"] == valid_hours
+    if valid_hours < 18:
+        assert np.isnan(row["pm25_daily"])
+    else:
+        assert row["pm25_daily"] == pytest.approx(10.0)
+    assert np.isinf(hourly["pm25"]).sum() == 24 - valid_hours
+
+
+@pytest.mark.parametrize("invalid", [np.inf, -np.inf])
+@pytest.mark.parametrize("valid_hours", [11, 12])
+def test_forecast_completeness_excludes_infinite_values(invalid, valid_hours):
+    forecast = pd.DataFrame({
+        "issue_date": date(2023, 8, 1),
+        "point_id": "A",
+        "valid_utc": pd.date_range("2023-08-01 08:00", periods=24, freq="h"),
+        "value": [10.0] * valid_hours + [invalid] * (24 - valid_hours),
+    })
+    row = model_daily(forecast, pd.Series({"A": -8})).iloc[0]
+    assert row["size"] == valid_hours
+    if valid_hours < 12:
+        assert np.isnan(row["mean"]) and np.isnan(row["max"])
+    else:
+        assert row["mean"] == pytest.approx(10.0)
+        assert row["max"] == pytest.approx(10.0)
+    assert np.isinf(forecast["value"]).sum() == 24 - valid_hours
+
+
 @pytest.mark.parametrize("valid_hours", [17, 18])
 def test_observation_completeness_counts_nonmissing_values(valid_hours):
     hourly = pd.DataFrame({

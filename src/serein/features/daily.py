@@ -25,10 +25,11 @@ def add_local_date(df: pd.DataFrame, offsets: pd.Series, time_col: str = "time_u
 
 def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
                     min_hours: int = MIN_HOURS_DAILY) -> pd.DataFrame:
-    """Daily mean PM2.5; require min_hours nonmissing observations per local day."""
+    """Daily mean PM2.5; require min_hours finite observations per local day."""
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
     h = add_local_date(h, offsets)
+    h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
     g = h.groupby(["point_id", "local_date"])["pm25"].agg(
         mean="mean", size="count").reset_index()
     g.loc[g["size"] < min_hours, "mean"] = np.nan
@@ -39,9 +40,10 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
                 min_count: int = 12, group_extra: tuple = ()) -> pd.DataFrame:
     """Aggregate a forecast (issue_date, point_id, valid_utc, value) to lead-day mean/max.
 
-    lead = local_date - issue_date (days). Size counts nonmissing values.
+    lead = local_date - issue_date (days). Size counts finite values.
     """
     d = add_local_date(df, offsets, time_col="valid_utc")
+    d[value_col] = d[value_col].where(np.isfinite(d[value_col]))
     d["lead"] = (pd.to_datetime(d["local_date"]) - pd.to_datetime(d["issue_date"])).dt.days
     keys = ["issue_date", "point_id", *group_extra, "lead"]
     g = d.groupby(keys, observed=True)[value_col].agg(
