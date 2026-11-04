@@ -38,7 +38,7 @@ docs/METHODS.md for the citations and caveats.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from numbers import Real
+from numbers import Integral, Real
 from statistics import NormalDist
 
 import numpy as np
@@ -49,6 +49,12 @@ FEATURES = ["intercept", "pm0_10", "pm_lag12_10", "pm0_x_outdoor", "cold", "miss
 
 def sigmoid(z):
     return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
+
+
+def _validate_sample_count(n_samples):
+    if (isinstance(n_samples, (bool, np.bool_))
+            or not isinstance(n_samples, Integral) or n_samples < 1):
+        raise ValueError("n_samples must be a positive integer")
 
 
 @dataclass
@@ -147,6 +153,11 @@ class ChildModel:
 
     def risk(self, X: np.ndarray, n_samples: int = 2000, seed: int = 0) -> dict:
         """Predicted probability of a symptom day, with a 90% credible range."""
+        _validate_sample_count(n_samples)
+        X = np.asarray(X, dtype=float)
+        if (X.ndim not in (1, 2) or X.shape[-1] != len(FEATURES)
+                or not np.isfinite(X).all()):
+            raise ValueError("risk features must be finite rows with len(FEATURES) columns")
         m, C = self._params()
         rng = np.random.default_rng(seed)
         B = rng.multivariate_normal(m, C, size=n_samples)
@@ -163,6 +174,7 @@ class ChildModel:
         Probabilities must be inside (0, 1), with finite, nonnegative,
         nondecreasing concentrations. A single quantile is a point forecast.
         """
+        _validate_sample_count(n_samples)
         if not pm_quantiles or any(
             isinstance(q, (bool, np.bool_)) or not isinstance(q, Real)
             or not np.isfinite(q) or not 0 < q < 1

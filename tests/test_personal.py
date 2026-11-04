@@ -315,6 +315,37 @@ def test_forecast_risk_counts_the_smoky_tail():
     assert wide["hi"] > narrow["hi"]
 
 
+@pytest.mark.parametrize("n_samples", [0, -1, 1.5, True, np.nan, np.inf, "10"])
+@pytest.mark.parametrize("forecast", [False, True])
+def test_risk_rejects_invalid_sample_counts(n_samples, forecast):
+    model = ChildModel()
+    with pytest.raises(ValueError, match="n_samples must be a positive integer"):
+        if forecast:
+            model.risk_under_forecast({0.5: 10}, 5, 5, 0.3, 0, 0,
+                                      n_samples=n_samples)
+        else:
+            model.risk(design_row(10, 5, 5, 0.3, 0, 0), n_samples=n_samples)
+
+
+@pytest.mark.parametrize("X", [
+    np.zeros(len(FEATURES) - 1), np.zeros((1, 1, len(FEATURES))),
+    np.full(len(FEATURES), np.nan), np.full(len(FEATURES), np.inf),
+])
+def test_risk_rejects_invalid_feature_rows(X):
+    with pytest.raises(ValueError, match="risk features"):
+        ChildModel().risk(X)
+
+
+def test_risk_accepts_numpy_sample_count_and_empty_batch():
+    model = ChildModel()
+    row = design_row(10, 5, 5, 0.3, 0, 0)
+    single = model.risk(row.tolist(), n_samples=np.int64(10))
+    batch = model.risk(np.stack([row, row]), n_samples=10)
+    for key in single:
+        np.testing.assert_allclose(batch[key], np.repeat(single[key], 2))
+        assert model.risk(np.empty((0, len(FEATURES))))[key].shape == (0,)
+
+
 @pytest.mark.parametrize("quantiles", [
     {}, {0.0: 10}, {1.0: 10}, {np.nan: 10}, {np.inf: 10},
     {0.5: np.nan}, {0.5: np.inf}, {0.5: -1},
