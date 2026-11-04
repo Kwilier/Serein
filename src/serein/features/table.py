@@ -39,6 +39,7 @@ def _obs_features(hourly: pd.DataFrame, daily: pd.DataFrame, points: pd.DataFram
                   days: list[date], av: Availability, leads: list[int]) -> pd.DataFrame:
     ids = points["point_id"].tolist()
     h = hourly.rename(columns={"site_id": "point_id"})
+    h["time_utc"] = pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.tz_localize(None)
     h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
     wide = h[h["point_id"].isin(ids)].pivot_table(
         index="time_utc", columns="point_id", values="pm25", aggfunc="mean")
