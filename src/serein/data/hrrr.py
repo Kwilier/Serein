@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+from numbers import Integral
 
 import numpy as np
 import pandas as pd
@@ -102,6 +103,10 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     """
     validate_point_coordinates(points["lat"], points["lon"])
     validate_point_ids(points["point_id"])
+    for name, value in (("max_fhr", max_fhr), ("smoke_every", smoke_every),
+                        ("met_every", met_every), ("workers", workers)):
+        if isinstance(value, bool) or not isinstance(value, Integral):
+            raise TypeError(f"{name} must be an integer")
     if max_fhr < 0:
         raise ValueError("max_fhr must be nonnegative")
     if smoke_every <= 0:

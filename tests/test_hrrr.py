@@ -94,6 +94,19 @@ def test_extract_cycle_rejects_invalid_settings_before_io(monkeypatch, setting, 
         hrrr.extract_cycle(date(2023, 8, 1), points, **{setting: value})
 
 
+@pytest.mark.parametrize("setting", ["max_fhr", "smoke_every", "met_every", "workers"])
+@pytest.mark.parametrize("value", [1.5, np.nan, np.inf, -np.inf, True, "2"])
+def test_extract_cycle_rejects_noninteger_settings_before_io(monkeypatch, setting, value):
+    def unexpected_io(*args, **kwargs):
+        pytest.fail("invalid settings must be rejected before cache or network access")
+
+    monkeypatch.setattr(hrrr, "interim_dir", unexpected_io)
+    monkeypatch.setattr(hrrr, "_fetch_fields", unexpected_io)
+    points = pd.DataFrame({"point_id": ["A"], "lat": [0.0], "lon": [0.0]})
+    with pytest.raises(TypeError, match=setting):
+        hrrr.extract_cycle(date(2023, 8, 1), points, **{setting: value})
+
+
 @pytest.mark.parametrize("met_vars", [None, [], [hrrr.DEFAULT_MET[0]]])
 def test_extract_cycle_respects_weather_field_selection(tmp_path, monkeypatch, met_vars):
     monkeypatch.setattr(hrrr, "interim_dir", lambda name: tmp_path)
