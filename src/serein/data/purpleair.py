@@ -93,7 +93,10 @@ def list_outdoor_sensors(region: Region) -> pd.DataFrame:
         "selat": region.lat_min, "selng": region.lon_max,
     }
     r = get(f"{API}/sensors", headers=_headers(), params=params)
-    js = r.json()
+    try:
+        js = r.json()
+    finally:
+        r.close()
     df = pd.DataFrame(js["data"], columns=js["fields"])
     df = df.rename(columns={"latitude": "lat", "longitude": "lon"})
     df.to_parquet(raw_dir("purpleair") / "sensors.parquet", index=False)
@@ -167,7 +170,10 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
             "average": average_minutes, "fields": ",".join(fields),
         }
         r = get(f"{API}/sensors/{sensor_index}/history", headers=_headers(), params=params)
-        js = r.json()
+        try:
+            js = r.json()
+        finally:
+            r.close()
         if not isinstance(js, dict) or not isinstance(js.get("data"), list):
             raise ValueError("history response data must be a list")  # noqa: TRY004
         response_fields = js.get("fields")

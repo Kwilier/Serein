@@ -1,10 +1,52 @@
 from datetime import UTC, datetime, timedelta, timezone
+from unittest.mock import Mock
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from serein.config import Region
 from serein.data import purpleair
+
+
+@pytest.mark.parametrize("operation", ["sensors", "history"])
+@pytest.mark.parametrize("outcome", ["success", "empty", "invalid", "read_error"])
+def test_client_closes_json_response(monkeypatch, tmp_path, operation, outcome):
+    response = Mock()
+    fields = (["sensor_index", "latitude", "longitude"] if operation == "sensors"
+              else ["time_stamp", "humidity"])
+    row = [1, 38.0, -122.0] if operation == "sensors" else [1688169600, 40.0]
+    response.json.return_value = {"fields": fields, "data": [row]}
+    if outcome == "empty":
+        response.json.return_value["data"] = []
+    elif outcome == "invalid":
+        response.json.return_value = {}
+    error = ValueError("JSON read failed")
+    if outcome == "read_error":
+        response.json.side_effect = error
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: response)
+    monkeypatch.setattr(purpleair, "_headers", dict)
+    monkeypatch.setattr(purpleair, "raw_dir", lambda source: tmp_path)
+
+    def download():
+        if operation == "sensors":
+            return purpleair.list_outdoor_sensors(Region(37, 39, -123, -121))
+        start = datetime(2023, 7, 1)
+        return purpleair.download_history(1, start, start + timedelta(days=1),
+                                          fields=["humidity"], pause_s=0)
+
+    if outcome in {"invalid", "read_error"}:
+        with pytest.raises((KeyError, ValueError)) as caught:
+            download()
+        if outcome == "read_error":
+            assert caught.value is error
+        assert not list(tmp_path.rglob("*.parquet"))
+    else:
+        result = download()
+        assert result.empty == (outcome == "empty")
+        if outcome == "success":
+            assert len(result) == 1
+    response.close.assert_called_once_with()
 
 
 @pytest.mark.parametrize("column", ["sensor_index", "time_utc", "pm2.5_cf_1_a",
@@ -374,6 +416,9 @@ def history_client(monkeypatch, tmp_path):
     monkeypatch.setattr(purpleair.time, "sleep", lambda seconds: None)
 
     class Response:
+        def close(self):
+            pass
+
         def __init__(self, params):
             self.params = params
 
@@ -421,6 +466,9 @@ def test_history_rejects_invalid_sensor_before_io(history_client, monkeypatch, s
 def test_history_rejects_response_metadata_collisions(
         history_client, monkeypatch, tmp_path, field, empty):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {"fields": ["time_stamp", "humidity", field],
                     "data": [] if empty else [[1688169600, 40.0, 999]]}
@@ -491,6 +539,9 @@ def test_history_merges_overlapping_chunks_in_time_order(history_client, monkeyp
     ])
 
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return next(responses)
 
@@ -507,6 +558,9 @@ def test_history_merges_overlapping_chunks_in_time_order(history_client, monkeyp
 def test_history_rejects_missing_requested_measurements(
         history_client, monkeypatch, tmp_path, missing):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             fields = ["time_stamp", *[f for f in purpleair.HISTORY_FIELDS if f != missing]]
             return {"fields": fields, "data": [[1688169600, 40.0, 40.0]]}
@@ -528,6 +582,9 @@ def test_history_rejects_missing_requested_measurements(
 def test_history_rejects_malformed_field_metadata(
         history_client, monkeypatch, tmp_path, metadata, rows):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {**metadata, "data": rows}
 
@@ -541,6 +598,9 @@ def test_history_rejects_malformed_field_metadata(
 @pytest.mark.parametrize("stamp", [None, np.nan, np.inf, "invalid", True, 1688169600.5])
 def test_history_rejects_invalid_response_timestamps(history_client, monkeypatch, tmp_path, stamp):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {"fields": ["time_stamp", "humidity"], "data": [[stamp, 40.0]]}
 
@@ -556,6 +616,9 @@ def test_history_rejects_response_outside_chunk(history_client, monkeypatch, tmp
     start = datetime(2023, 7, 1, tzinfo=UTC)
 
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {"fields": ["time_stamp", "humidity"],
                     "data": [[int(start.timestamp()) + offset, 40.0]]}
@@ -573,6 +636,9 @@ def test_history_rejects_response_outside_chunk(history_client, monkeypatch, tmp
 def test_history_rejects_duplicate_response_fields(
         history_client, monkeypatch, tmp_path, fields, row):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {"fields": fields, "data": [row]}
 
@@ -585,6 +651,9 @@ def test_history_rejects_duplicate_response_fields(
 
 def test_history_rejects_missing_response_timestamp(history_client, monkeypatch, tmp_path):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {"fields": ["humidity"], "data": [[40.0]]}
 
@@ -602,6 +671,9 @@ def test_history_rejects_missing_response_timestamp(history_client, monkeypatch,
 ])
 def test_history_rejects_malformed_response_rows(history_client, monkeypatch, tmp_path, rows):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {"fields": ["time_stamp", "humidity"], "data": rows}
 
@@ -633,6 +705,9 @@ def test_history_rejects_malformed_empty_chunk(history_client, monkeypatch, tmp_
     ])
 
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return next(responses)
 
@@ -658,6 +733,9 @@ def test_history_rejects_incomplete_empty_chunk_fields(
     ])
 
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return next(responses)
 
@@ -677,6 +755,9 @@ def test_history_accepts_empty_chunk_between_populated_chunks(history_client, mo
     ])
 
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return next(responses)
 
@@ -860,6 +941,9 @@ def test_history_rejects_generated_metadata_fields_before_io(
 
 def test_empty_history_preserves_schema_for_cleaning(history_client, monkeypatch, tmp_path):
     class Response:
+        def close(self):
+            pass
+
         def json(self):
             return {"fields": ["time_stamp", *purpleair.HISTORY_FIELDS], "data": []}
 
