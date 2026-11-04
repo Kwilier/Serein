@@ -856,3 +856,21 @@ def test_history_rejects_generated_metadata_fields_before_io(
             purpleair.download_history(1, start, start + timedelta(days=1),
                                       fields=["humidity", field])
     assert not history_client
+
+
+def test_empty_history_preserves_schema_for_cleaning(history_client, monkeypatch, tmp_path):
+    class Response:
+        def json(self):
+            return {"fields": ["time_stamp", *purpleair.HISTORY_FIELDS], "data": []}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    frame = purpleair.download_history(1, start, start + timedelta(days=2), max_days=1)
+    assert frame.empty
+    assert set(frame.columns) == {
+        "time_stamp", "time_utc", "sensor_index", *purpleair.HISTORY_FIELDS,
+    }
+    cleaned = purpleair.clean_history(frame)
+    assert cleaned.empty
+    assert list(cleaned.columns) == ["time_utc", "sensor_index", "pm25"]
+    assert not list(tmp_path.rglob("*.parquet"))

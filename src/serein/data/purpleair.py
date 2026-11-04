@@ -206,7 +206,11 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         t = t1
         time.sleep(pause_s)
     if not parts:
-        return pd.DataFrame()
+        empty = pd.DataFrame({field: pd.Series(dtype=float)
+                              for field in dict.fromkeys(["time_stamp", *fields])})
+        empty["time_utc"] = pd.Series(dtype="datetime64[ns]")
+        empty["sensor_index"] = pd.Series(dtype="int64")
+        return empty
     df = (pd.concat(parts, ignore_index=True)
           .drop_duplicates("time_stamp", keep="last")
           .sort_values("time_stamp").reset_index(drop=True))
