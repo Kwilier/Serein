@@ -7,6 +7,40 @@ import pytest
 from serein.data import purpleair
 
 
+@pytest.mark.parametrize("kwargs", [
+    {"n_sensors": -1}, {"days": -1}, {"average_minutes": 0},
+    {"average_minutes": -10}, {"n_sensors": 1.5}, {"days": np.nan},
+    {"average_minutes": np.inf}, {"n_sensors": True},
+])
+def test_cost_estimate_rejects_invalid_request_sizes(kwargs):
+    request = {"n_sensors": 10, "days": 30, "average_minutes": 60}
+    request.update(kwargs)
+    with pytest.raises(ValueError):
+        purpleair.estimate_history_points(**request)
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"base_per_call": -1}, {"per_field_row": -1},
+    {"base_per_call": np.nan}, {"per_field_row": np.inf},
+    {"max_days_per_call_hourly": 0}, {"max_days_per_call_hourly": 1.5},
+])
+def test_cost_estimate_rejects_invalid_prices(kwargs):
+    with pytest.raises(ValueError):
+        purpleair.estimate_history_points(1, 1, prices=purpleair.PointPrices(**kwargs))
+
+
+def test_cost_estimate_rounds_fractional_points_up():
+    prices = purpleair.PointPrices(base_per_call=0.25, per_field_row=0.1)
+    estimate = purpleair.estimate_history_points(1, 1, fields=["humidity"], prices=prices)
+    assert estimate == {"sensors": 1, "days": 1, "calls": 1, "rows": 24, "points": 3}
+
+
+@pytest.mark.parametrize("sensors,days", [(0, 30), (10, 0)])
+def test_cost_estimate_empty_requests_cost_nothing(sensors, days):
+    estimate = purpleair.estimate_history_points(sensors, days)
+    assert estimate["calls"] == estimate["rows"] == estimate["points"] == 0
+
+
 def test_correction_broadcasts_constant_humidity_across_pm_readings():
     pm = np.array([0.0, 20.0, 40.0, 100.0, 230.0, 300.0, np.nan])
     expected = purpleair.epa_correction(pm, np.full(pm.shape, 40.0))

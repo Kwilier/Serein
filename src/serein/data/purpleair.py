@@ -10,11 +10,13 @@ Pricing); the defaults below are placeholders to update from that page.
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from numbers import Integral
 
 import numpy as np
 import pandas as pd
@@ -46,12 +48,27 @@ class PointPrices:
 def estimate_history_points(n_sensors: int, days: int, average_minutes: int = 60,
                             fields: list[str] = HISTORY_FIELDS,
                             prices: PointPrices | None = None) -> dict:
+    """Estimate points, rounding fractional totals up for budgeting.
+
+    Counts must be integers; zero sensors or days produce a zero-cost estimate.
+    """
     prices = prices or PointPrices()
+    for name, value, minimum in (
+        ("n_sensors", n_sensors, 0), ("days", days, 0),
+        ("average_minutes", average_minutes, 1),
+        ("max_days_per_call_hourly", prices.max_days_per_call_hourly, 1),
+    ):
+        if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+            raise ValueError(f"{name} must be an integer >= {minimum}")
+    for name in ("base_per_call", "per_field_row"):
+        value = getattr(prices, name)
+        if not math.isfinite(value) or value < 0:
+            raise ValueError(f"{name} must be finite and nonnegative")
     rows_per_sensor = days * 24 * 60 / average_minutes
     calls = n_sensors * int(np.ceil(days / prices.max_days_per_call_hourly))
     points = calls * prices.base_per_call + n_sensors * rows_per_sensor * len(fields) * prices.per_field_row
     return {"sensors": n_sensors, "days": days, "calls": calls,
-            "rows": int(n_sensors * rows_per_sensor), "points": int(points)}
+            "rows": int(n_sensors * rows_per_sensor), "points": math.ceil(points)}
 
 
 # ------------------------------------------------------------------------ client
