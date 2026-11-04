@@ -1,0 +1,36 @@
+from datetime import date
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from serein.data.availability import Availability
+from serein.features.table import _obs_features
+
+
+@pytest.mark.parametrize("invalid", [np.inf, -np.inf])
+def test_rolling_observations_exclude_nonfinite_readings(invalid):
+    day = date(2023, 8, 1)
+    av = Availability()
+    cutoff = pd.Timestamp(av.last_obs_hour_start(day))
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": [cutoff - pd.Timedelta(hours=5),
+                     cutoff - pd.Timedelta(hours=2), cutoff,
+                     cutoff + pd.Timedelta(hours=1)],
+        "pm25": [10.0, 20.0, invalid, 1000.0],
+    })
+    original = hourly.copy(deep=True)
+    daily = pd.DataFrame(columns=["local_date", "point_id", "pm25_daily"])
+    points = pd.DataFrame({"point_id": ["A", "B"]})
+    out = _obs_features(hourly, daily, points, [day], av, [0]).set_index("point_id")
+    row = out.loc["A"]
+    assert np.isnan(row["obs_last1"])
+    assert row["obs_last3"] == pytest.approx(20.0)
+    assert row["obs_last6"] == pytest.approx(15.0)
+    assert row["obs_last24"] == pytest.approx(15.0)
+    assert row["obs_max24"] == pytest.approx(20.0)
+    assert row["obs_n24"] == 2
+    assert out.loc["B", "obs_n24"] == 0
+    assert np.isnan(out.loc["B", "obs_last24"])
+    pd.testing.assert_frame_equal(hourly, original)
