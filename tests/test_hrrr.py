@@ -8,6 +8,21 @@ from serein.data import grib, hrrr
 from serein.data.grib import GribField
 
 
+@pytest.mark.parametrize("setting,value", [
+    ("max_fhr", -1), ("smoke_every", 0), ("smoke_every", -1),
+    ("met_every", 0), ("met_every", -1), ("workers", 0),
+])
+def test_extract_cycle_rejects_invalid_settings_before_io(monkeypatch, setting, value):
+    def unexpected_io(*args, **kwargs):
+        pytest.fail("invalid settings must be rejected before cache or network access")
+
+    monkeypatch.setattr(hrrr, "interim_dir", unexpected_io)
+    monkeypatch.setattr(hrrr, "_fetch_fields", unexpected_io)
+    points = pd.DataFrame({"point_id": ["A"], "lat": [0.0], "lon": [0.0]})
+    with pytest.raises(ValueError, match=setting):
+        hrrr.extract_cycle(date(2023, 8, 1), points, **{setting: value})
+
+
 @pytest.mark.parametrize("met_vars", [None, [], [hrrr.DEFAULT_MET[0]]])
 def test_extract_cycle_respects_weather_field_selection(tmp_path, monkeypatch, met_vars):
     monkeypatch.setattr(hrrr, "interim_dir", lambda name: tmp_path)

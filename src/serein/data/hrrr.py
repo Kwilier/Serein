@@ -92,6 +92,14 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     Use met_vars=None for default weather fields or [] for smoke only.
     Caches without matching request metadata are rebuilt.
     """
+    if max_fhr < 0:
+        raise ValueError("max_fhr must be nonnegative")
+    if smoke_every <= 0:
+        raise ValueError("smoke_every must be positive")
+    if met_every <= 0:
+        raise ValueError("met_every must be positive")
+    if workers <= 0:
+        raise ValueError("workers must be positive")
     met_vars = DEFAULT_MET if met_vars is None else met_vars
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
         points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
