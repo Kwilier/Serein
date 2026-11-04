@@ -123,3 +123,19 @@ def test_point_index_rejects_invalid_cached_lookup(tmp_path, monkeypatch, idx, d
 
     with pytest.raises(ValueError, match="Invalid grid index cache"):
         grib.PointIndex("test", [0.0, 0.0], [0.0, 1.0], [0.0], [0.0])
+
+
+@pytest.mark.parametrize("values", [
+    np.array([12.0]), np.array([12.0, 24.0, 36.0]),
+    np.array([[12.0, 24.0]]), np.array(12.0),
+])
+@pytest.mark.parametrize("cached", [False, True])
+def test_point_index_rejects_field_from_wrong_grid(tmp_path, monkeypatch, values, cached):
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    args = ("test", [0.0, 0.0], [0.0, 1.0], [0.0], [0.0])
+    index = grib.PointIndex(*args)
+    if cached:
+        index = grib.PointIndex(*args)
+
+    with pytest.raises(ValueError, match="field.*grid"):
+        index.sample(values)

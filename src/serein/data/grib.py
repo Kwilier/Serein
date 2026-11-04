@@ -116,6 +116,7 @@ class PointIndex:
             raise ValueError("max_km must be finite and nonnegative")
         validate_point_coordinates(lat_grid, lon_grid)
         validate_point_coordinates(pt_lat, pt_lon)
+        self._grid_size = len(lat_grid)
         points_key = hashlib.sha1(
             np.ascontiguousarray(np.c_[pt_lat, pt_lon]).astype(np.float64).tobytes()
         ).hexdigest()[:12]
@@ -150,6 +151,8 @@ class PointIndex:
             np.savez(cache, idx=self.idx, dist_km=self.dist_km)
 
     def sample(self, values: np.ndarray) -> np.ndarray:
+        if values.shape != (self._grid_size,):
+            raise ValueError("Forecast field shape must match the indexed grid")
         out = values[self.idx].astype(np.float32)
         out[~self.valid] = np.nan
         return out
