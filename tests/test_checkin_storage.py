@@ -7,6 +7,34 @@ import pytest
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
 
 
+@pytest.mark.parametrize("value", [True, np.bool_(False), -1.0, "10", 2 + 1j,
+                                  [10.0], np.array([10.0]), np.array(10.0)])
+@pytest.mark.parametrize("lag", [0, 1, 2])
+def test_model_rows_rejects_invalid_exposure_values(value, lag):
+    from datetime import timedelta
+
+    day = date(2026, 11, 4)
+    log = to_frame([CheckIn(day, 0, 0, False, 1, False, False)])
+    before = log.copy(deep=True)
+    pm = {day - timedelta(days=i): 10.0 for i in range(3)}
+    pm[day - timedelta(days=lag)] = value
+    with pytest.raises(ValueError, match="PM.*nonnegative.*number"):
+        model_rows(log, pm)
+    pd.testing.assert_frame_equal(log, before)
+
+
+def test_model_rows_accepts_numpy_exposure_scalars_and_zero():
+    day = date(2026, 11, 4)
+    log = to_frame([CheckIn(day, 0, 0, False, 1, False, False)])
+    pm = {date(2026, 11, 2): np.int64(0), date(2026, 11, 3): np.float32(10),
+          day: np.float64(20)}
+    X, y = model_rows(log, pm)
+    expected_X, expected_y = model_rows(log, {d: float(v) for d, v in pm.items()})
+    assert X.shape == (1, 9)
+    np.testing.assert_array_equal(X, expected_X)
+    np.testing.assert_array_equal(y, expected_y)
+
+
 @pytest.mark.parametrize("value", [
     None, np.nan, pd.NaT, 20261104, True, datetime(2026, 11, 4),
     pd.Timestamp("2026-11-04"), "2026-11-04T12:00:00", "2026-02-30", "",

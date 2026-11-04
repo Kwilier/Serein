@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields
 from datetime import date, datetime
-from numbers import Integral
+from numbers import Integral, Real
 from pathlib import Path
 
 import numpy as np
@@ -94,7 +94,7 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
     Log days may be calendar dates or ISO date strings from save_local CSV files.
     The last entry for each day wins, matching to_frame when a check-in is edited.
     pm_by_day: {date: µg/m³}. Missing or nonfinite PM on today or either prior day
-    excludes the row.
+    excludes the row. Available readings must be nonnegative real numbers.
     """
     X, y = [], []
     if not log.empty:
@@ -115,6 +115,12 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
         pm0 = pm_by_day.get(d)
         pm1 = pm_by_day.get(d - pd.Timedelta(days=1).to_pytimedelta())
         pm2 = pm_by_day.get(d - pd.Timedelta(days=2).to_pytimedelta())
+        for pm in (pm0, pm1, pm2):
+            if pm is None or pm is pd.NA:
+                continue
+            if (isinstance(pm, (bool, np.bool_)) or not isinstance(pm, Real)
+                    or (np.isfinite(pm) and pm < 0)):
+                raise ValueError("PM readings must be nonnegative real numbers")
         if any(pd.isna(pm) or not np.isfinite(pm) for pm in (pm0, pm1, pm2)):
             continue
         X.append(design_row(pm0, pm1, pm2, OUTDOOR_FRAC[r.outdoor], int(r.cold),
