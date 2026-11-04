@@ -14,6 +14,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
 import numpy as np
 import pandas as pd
@@ -72,7 +73,20 @@ def list_outdoor_sensors(region: Region) -> pd.DataFrame:
 def download_history(sensor_index: int, start: datetime, end: datetime,
                      average_minutes: int = 60, fields: list[str] = HISTORY_FIELDS,
                      max_days: int = 14, pause_s: float = 1.0) -> pd.DataFrame:
-    path = raw_dir("purpleair") / "history" / f"{sensor_index}_{start:%Y%m%d}_{end:%Y%m%d}.parquet"
+    """Download history for a UTC range; naive datetimes are interpreted as UTC.
+
+    Cache entries include the exact range, averaging interval and ordered fields.
+    Legacy date-only caches are ignored because their request settings are unknown.
+    """
+    if max_days <= 0 or average_minutes <= 0:
+        raise ValueError("max_days and average_minutes must be positive")
+    start = start.replace(tzinfo=UTC) if start.tzinfo is None else start.astimezone(UTC)
+    end = end.replace(tzinfo=UTC) if end.tzinfo is None else end.astimezone(UTC)
+    if start >= end:
+        raise ValueError("start must be before end")
+    request_key = f"{start.isoformat()}|{end.isoformat()}|{average_minutes}|{','.join(fields)}"
+    digest = sha256(request_key.encode()).hexdigest()
+    path = raw_dir("purpleair") / "history" / f"{sensor_index}_{digest}.parquet"
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         return pd.read_parquet(path)
@@ -80,8 +94,8 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     while t < end:
         t1 = min(t + timedelta(days=max_days), end)
         params = {
-            "start_timestamp": int(t.replace(tzinfo=UTC).timestamp()),
-            "end_timestamp": int(t1.replace(tzinfo=UTC).timestamp()),
+            "start_timestamp": int(t.timestamp()),
+            "end_timestamp": int(t1.timestamp()),
             "average": average_minutes, "fields": ",".join(fields),
         }
         r = get(f"{API}/sensors/{sensor_index}/history", headers=_headers(), params=params)
