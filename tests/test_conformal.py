@@ -119,3 +119,25 @@ def test_empty_bins_use_pooled_calibration():
     lower, upper = model.apply(values, values, values)
     np.testing.assert_array_equal(lower, np.full_like(values, -2.0))
     np.testing.assert_array_equal(upper, np.full_like(values, 2.0))
+
+
+def test_reversed_bounds_are_rejected_before_replacing_calibration():
+    lo = np.array([[0.0], [3.0]])
+    hi = np.array([[1.0], [2.0]])
+    median = (lo + hi) / 2
+    model = CQR(qhat={(0, -1): 0.75})
+    with pytest.raises(ValueError, match="bounds"):
+        model.fit(lo, hi, median, median)
+    assert model.qhat == {(0, -1): 0.75}
+    with pytest.raises(ValueError, match="bounds"):
+        model.apply(lo, hi, median)
+
+
+def test_equal_and_missing_bounds_remain_supported():
+    lo = np.array([[1.0], [np.nan]])
+    hi = np.array([[1.0], [np.nan]])
+    median = np.ones_like(lo)
+    model = CQR().fit(lo, hi, median, np.array([[2.0], [4.0]]))
+    lower, upper = model.apply(lo, hi, median)
+    np.testing.assert_allclose(lower, [[0.0], [np.nan]])
+    np.testing.assert_allclose(upper, [[2.0], [np.nan]])

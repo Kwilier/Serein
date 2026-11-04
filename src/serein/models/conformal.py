@@ -27,6 +27,11 @@ def _validate_shapes(*arrays):
         raise ValueError("Calibration arrays must have the same [rows, leads] shape")
 
 
+def _validate_bounds(lo, hi):
+    if np.any(lo > hi):
+        raise ValueError("Lower forecast bounds must not exceed upper bounds")
+
+
 def _qhat(scores: np.ndarray, alpha: float) -> float:
     s = scores[np.isfinite(scores)]
     n = len(s)
@@ -57,6 +62,7 @@ class CQR:
         """Arrays [rows, L] in log1p space."""
         _validate_shapes(lo, hi, median, y)
         self._validate_settings()
+        _validate_bounds(lo, hi)
         L = lo.shape[1]
         self.qhat.clear()
         for lead in range(L):
@@ -73,6 +79,7 @@ class CQR:
     def apply(self, lo, hi, median):
         _validate_shapes(lo, hi, median)
         self._validate_settings()
+        _validate_bounds(lo, hi)
         lo2 = lo.astype(np.result_type(lo.dtype, np.float32), copy=True)
         hi2 = hi.astype(np.result_type(hi.dtype, np.float32), copy=True)
         n_groups = len(self.bins) + 1
