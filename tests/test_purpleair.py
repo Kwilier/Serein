@@ -29,6 +29,27 @@ def test_cost_estimate_rejects_invalid_prices(kwargs):
         purpleair.estimate_history_points(1, 1, prices=purpleair.PointPrices(**kwargs))
 
 
+def test_clean_history_keeps_humidity_fallback_local_to_each_sensor():
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=7, freq="h"),
+        "sensor_index": [1, 2, 1, 2, 3, 3, 1],
+        "pm2.5_cf_1_a": [20.0] * 5 + [300.0, 20.0],
+        "pm2.5_cf_1_b": [20.0] * 5 + [300.0, 20.0],
+        "humidity": [20.0, 80.0, np.nan, np.inf, np.nan, np.nan, 40.0],
+    }, index=[9, 7, 5, 3, 1, 8, 6])
+    original = frame.copy(deep=True)
+    result = purpleair.clean_history(frame)
+    separate = pd.concat([
+        purpleair.clean_history(group) for _, group in frame.groupby("sensor_index")
+    ], ignore_index=True)
+    pd.testing.assert_frame_equal(
+        result.sort_values("time_utc").reset_index(drop=True),
+        separate.sort_values("time_utc").reset_index(drop=True),
+    )
+    assert result["time_utc"].tolist() == frame.drop(index=1)["time_utc"].tolist()
+    pd.testing.assert_frame_equal(frame, original)
+
+
 def test_cost_estimate_rounds_fractional_points_up():
     prices = purpleair.PointPrices(base_per_call=0.25, per_field_row=0.1)
     estimate = purpleair.estimate_history_points(1, 1, fields=["humidity"], prices=prices)

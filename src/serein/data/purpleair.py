@@ -269,7 +269,8 @@ def clean_history(df: pd.DataFrame) -> pd.DataFrame:
     """A/B QC + finite EPA corrections -> time_utc, sensor_index, pm25."""
     mean, keep = qc_ab(df["pm2.5_cf_1_a"], df["pm2.5_cf_1_b"])
     humidity = df["humidity"].where(np.isfinite(df["humidity"]) & df["humidity"].between(0, 100))
-    rh = humidity.fillna(humidity.median()).to_numpy()
+    sensor_median = humidity.groupby(df["sensor_index"]).transform("median")
+    rh = humidity.fillna(sensor_median).to_numpy()
     pm = epa_correction(mean, rh)
     out = pd.DataFrame({"time_utc": df["time_utc"], "sensor_index": df["sensor_index"], "pm25": pm})
     return out[keep & np.isfinite(pm)].reset_index(drop=True)
