@@ -170,3 +170,24 @@ def test_rolling_observations_reject_duplicate_daily_targets(values):
     with pytest.raises(ValueError, match="duplicate.*daily"):
         _obs_features(hourly, daily, points, [day], Availability(), [0])
     pd.testing.assert_frame_equal(daily, original)
+
+
+@pytest.mark.parametrize("invalid", [np.inf, -np.inf])
+def test_daily_targets_exclude_nonfinite_readings(invalid):
+    day = date(2023, 8, 1)
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    daily = pd.DataFrame({
+        "point_id": ["A", "A", "A", "A", "B"],
+        "local_date": [date(2023, 7, 30), date(2023, 7, 31), day, date(2023, 8, 2), day],
+        "pm25_daily": [invalid, invalid, invalid, 30.0, 20.0],
+    })
+    original = daily.copy(deep=True)
+    points = pd.DataFrame({"point_id": ["A", "B"]})
+    out = _obs_features(hourly, daily, points, [day], Availability(), [0, 1])
+    row = out.set_index("point_id").loc["A"]
+    for column in ("obs_prevday", "obs_prev2day", "y_L0"):
+        assert np.isnan(row[column])
+    assert row["y_L1"] == 30.0
+    assert out.set_index("point_id").loc["B", "y_L0"] == 20.0
+    pd.testing.assert_frame_equal(daily, original)

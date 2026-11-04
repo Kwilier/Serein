@@ -49,6 +49,8 @@ def _obs_features(hourly: pd.DataFrame, daily: pd.DataFrame, points: pd.DataFram
         raise ValueError("daily observations contain missing dates")
     if daily.duplicated(["local_date", "point_id"]).any():
         raise ValueError("duplicate point/date pairs in daily observations")
+    if not daily.empty:
+        daily["pm25_daily"] = daily["pm25_daily"].where(np.isfinite(daily["pm25_daily"]))
     ids = points["point_id"].tolist()
     h = hourly.rename(columns={"site_id": "point_id"})
     h["time_utc"] = pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.tz_localize(None)
