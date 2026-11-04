@@ -95,6 +95,7 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     Cache entries include the exact range, averaging interval and ordered fields.
     Legacy date-only caches are ignored because their request settings are unknown.
     Overlapping chunk timestamps keep the later response and are sorted in UTC.
+    Range boundaries must use whole seconds to avoid API timestamp truncation.
     """
     for name, value in (("max_days", max_days), ("average_minutes", average_minutes)):
         if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
@@ -104,6 +105,8 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     max_days, average_minutes = int(max_days), int(average_minutes)
     start = start.replace(tzinfo=UTC) if start.tzinfo is None else start.astimezone(UTC)
     end = end.replace(tzinfo=UTC) if end.tzinfo is None else end.astimezone(UTC)
+    if start.microsecond or end.microsecond:
+        raise ValueError("start and end must use whole seconds")
     if start >= end:
         raise ValueError("start must be before end")
     request_key = f"{start.isoformat()}|{end.isoformat()}|{average_minutes}|{','.join(fields)}"

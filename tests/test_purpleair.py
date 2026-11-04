@@ -189,3 +189,19 @@ def test_history_rejects_empty_or_reversed_ranges(history_client, delta):
     with pytest.raises(ValueError):
         purpleair.download_history(1, start, start + delta)
     assert not history_client
+
+
+@pytest.mark.parametrize("start_us,end_us", [(1, 0), (0, 1), (100, 200)])
+def test_history_rejects_subsecond_boundaries_before_cache_access(
+        history_client, monkeypatch, start_us, end_us):
+    def unexpected_cache_access(source):
+        pytest.fail("invalid range reached the cache")
+
+    monkeypatch.setattr(purpleair, "raw_dir", unexpected_cache_access)
+    start = datetime(2023, 7, 1, microsecond=start_us)
+    end = datetime(2023, 7, 1, microsecond=end_us)
+    if end <= start:
+        end += timedelta(seconds=1)
+    with pytest.raises(ValueError, match="whole seconds"):
+        purpleair.download_history(1, start, end)
+    assert not history_client
