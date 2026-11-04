@@ -91,6 +91,9 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
         log["day"] = log["day"].map(
             lambda day: date.fromisoformat(day) if isinstance(day, str) else day)
         log = log.drop_duplicates("day", keep="last")
+        for column in ("cold", "missed_controller"):
+            if not log[column].map(lambda value: isinstance(value, (bool, np.bool_))).all():
+                raise ValueError(f"check-in {column} answers must be boolean")
     for r in log.itertuples():
         d = r.day
         pm0 = pm_by_day.get(d)

@@ -2,8 +2,21 @@ from datetime import date
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
+
+
+@pytest.mark.parametrize("column", ["cold", "missed_controller"])
+@pytest.mark.parametrize("value", [0.5, 2, "False", None, np.nan])
+def test_loaded_checkins_reject_nonboolean_model_answers(column, value):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log[column] = pd.Series([value], dtype=object)
+    before = log.copy(deep=True)
+    pm = {date(2026, 11, day): 10.0 for day in range(2, 5)}
+    with pytest.raises(ValueError, match=column):
+        model_rows(log, pm)
+    pd.testing.assert_frame_equal(log, before)
 
 
 def test_empty_checkins_preserve_columns_and_save_readable_csv(tmp_path):
