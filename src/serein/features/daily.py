@@ -22,6 +22,8 @@ def add_local_date(df: pd.DataFrame, offsets: pd.Series, time_col: str = "time_u
     if not np.isfinite(off).all():
         raise ValueError("Each point must have a finite standard-time offset")
     utc = pd.to_datetime(df[time_col], utc=True, format="mixed").dt.tz_localize(None)
+    if utc.isna().any():
+        raise ValueError(f"{time_col} must not contain missing timestamps")
     local = utc + pd.to_timedelta(off, unit="h")
     df = df.assign(local_date=local.dt.date, _off=off)
     return df
@@ -40,6 +42,8 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
     h = h.assign(time_utc=pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.floor("h"))
+    if h["time_utc"].isna().any():
+        raise ValueError("time_utc must not contain missing timestamps")
     h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
     h = h.groupby(["point_id", "time_utc"], as_index=False)["pm25"].mean()
     h = add_local_date(h, offsets)
@@ -61,6 +65,8 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
         raise ValueError("min_count must be a positive integer")
     d = df.copy()
     d["valid_utc"] = pd.to_datetime(d["valid_utc"], utc=True, format="mixed")
+    if d["valid_utc"].isna().any():
+        raise ValueError("valid_utc must not contain missing timestamps")
     d[value_col] = d[value_col].where(np.isfinite(d[value_col]))
     timestamp_keys = ["issue_date", "point_id", *group_extra, "valid_utc"]
     d = d.groupby(timestamp_keys, observed=True, as_index=False)[value_col].mean()

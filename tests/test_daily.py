@@ -269,3 +269,23 @@ def test_daily_rejects_invalid_completeness_threshold(kind, threshold):
         })
         with pytest.raises(ValueError, match="min_count must be a positive integer"):
             model_daily(data, offsets, min_count=threshold)
+
+
+@pytest.mark.parametrize("missing", [None, pd.NaT, ""])
+@pytest.mark.parametrize("kind", ["observation", "forecast"])
+def test_daily_rejects_missing_timestamps(kind, missing):
+    offsets = pd.Series({"A": 0})
+    if kind == "observation":
+        data = pd.DataFrame({
+            "site_id": ["A", "A"], "time_utc": ["2023-08-01", missing],
+            "pm25": [10.0, 100.0],
+        })
+        with pytest.raises(ValueError, match="time_utc.*missing"):
+            obs_daily_means(data, offsets, min_hours=1)
+    else:
+        data = pd.DataFrame({
+            "issue_date": date(2023, 8, 1), "point_id": ["A", "A"],
+            "valid_utc": ["2023-08-01", missing], "value": [10.0, 100.0],
+        })
+        with pytest.raises(ValueError, match="valid_utc.*missing"):
+            model_daily(data, offsets, min_count=1)
