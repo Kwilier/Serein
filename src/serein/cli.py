@@ -168,6 +168,60 @@ def cmd_purpleair(args):
     elif args.action == "list":
         df = purpleair.list_outdoor_sensors(load_study(args.config).region)
         print(f"{len(df)} outdoor sensors saved")
+    elif args.action == "qc":
+        import json
+        from pathlib import Path
+
+        from serein.data.purpleair_qc import (
+            QCConfig,
+            accepted_history,
+            quality_control,
+            summarize_qc,
+        )
+
+        if not args.input or not args.output:
+            sys.exit("purpleair qc requires INPUT and --output (CSV or Parquet)")
+
+        def read(path):
+            path = Path(path)
+            if path.suffix.lower() == ".csv":
+                return pd.read_csv(path)
+            if path.suffix.lower() == ".parquet":
+                return pd.read_parquet(path)
+            raise ValueError("QC files must use .csv or .parquet")
+
+        def write(frame, path):
+            path = Path(path)
+            if path.suffix.lower() not in (".csv", ".parquet"):
+                raise ValueError("QC files must use .csv or .parquet")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.suffix.lower() == ".csv":
+                frame.to_csv(path, index=False)
+            else:
+                frame.to_parquet(path, index=False)
+
+        try:
+            inputs = {Path(path).resolve() for path in (args.input, args.sensors_file) if path}
+            outputs = [Path(path).resolve() for path in (args.output, args.clean_output) if path]
+            if any(path in inputs for path in outputs) or len(set(outputs)) != len(outputs):
+                raise ValueError("QC outputs must be distinct from each other and from input files")
+            config = QCConfig(
+                ab_abs_tol=args.ab_abs_tol, ab_rel_tol=args.ab_rel_tol,
+                expected_minutes=args.average, stuck_hours=args.stuck_hours,
+                stuck_tolerance=args.stuck_tolerance, neighbor_radius_km=args.neighbor_radius_km,
+                min_neighbors=args.min_neighbors, neighbor_abs_tol=args.neighbor_abs_tol,
+                neighbor_rel_tol=args.neighbor_rel_tol)
+            sensors = read(args.sensors_file) if args.sensors_file else None
+            audit = quality_control(read(args.input), sensors, config)
+            # Validate every destination before writing either output.
+            if any(path.suffix.lower() not in (".csv", ".parquet") for path in outputs):
+                raise ValueError("QC files must use .csv or .parquet")
+            write(audit, args.output)
+            if args.clean_output:
+                write(accepted_history(audit), args.clean_output)
+            print(json.dumps(summarize_qc(audit), indent=2, sort_keys=True))
+        except (TypeError, ValueError, OSError) as exc:
+            sys.exit(f"PurpleAir QC: {exc}")
 
 
 def cmd_airplan_demo(args):
@@ -261,11 +315,23 @@ def main(argv=None):
     sp.set_defaults(fn=cmd_transfer)
 
     sp = sub.add_parser("purpleair", help="PurpleAir tools")
-    sp.add_argument("action", choices=["estimate", "list"])
+    sp.add_argument("action", choices=["estimate", "list", "qc"])
+    sp.add_argument("input", nargs="?", help="raw history CSV or Parquet for offline QC")
     sp.add_argument("--config", default=DEFAULT_CONFIG)
     sp.add_argument("--sensors", type=int, default=300)
     sp.add_argument("--days", type=int, default=153)
     sp.add_argument("--average", type=int, default=60)
+    sp.add_argument("--output", help="QC audit CSV or Parquet (all original rows plus flags)")
+    sp.add_argument("--sensors-file", help="sensor metadata CSV or Parquet, keyed by sensor_index")
+    sp.add_argument("--clean-output", help="optional accepted time_utc/sensor_index/pm25 output")
+    sp.add_argument("--ab-abs-tol", type=float, default=5.0)
+    sp.add_argument("--ab-rel-tol", type=float, default=0.7)
+    sp.add_argument("--stuck-hours", type=float, default=24.0)
+    sp.add_argument("--stuck-tolerance", type=float, default=0.01)
+    sp.add_argument("--neighbor-radius-km", type=float, default=25.0)
+    sp.add_argument("--min-neighbors", type=int, default=3)
+    sp.add_argument("--neighbor-abs-tol", type=float, default=30.0)
+    sp.add_argument("--neighbor-rel-tol", type=float, default=2.0)
     sp.set_defaults(fn=cmd_purpleair)
 
     sp = sub.add_parser("airplan-demo", help="simulate a child and print their plan")
