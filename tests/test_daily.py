@@ -7,6 +7,24 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("group_extra", [(), ("var",)])
+def test_empty_forecast_has_usable_aggregation_schema(group_extra):
+    forecast = pd.DataFrame(columns=["issue_date", "point_id", "valid_utc", "pm25", "var"])
+    original = forecast.copy()
+    result = model_daily(forecast, pd.Series({"A": -8}), value_col="pm25",
+                         group_extra=group_extra)
+    assert result.empty
+    assert list(result.columns) == ["issue_date", "point_id", *group_extra,
+                                    "lead", "mean", "max", "size"]
+    assert result["lead"].between(0, 3).empty
+    pivot = result.pivot_table(index=["issue_date", "point_id"],
+                               columns=[*group_extra, "lead"], values="mean")
+    assert pivot.empty
+    assert pd.api.types.is_integer_dtype(result["size"])
+    assert pd.api.types.is_float_dtype(result["mean"])
+    pd.testing.assert_frame_equal(forecast, original)
+
+
 @pytest.mark.parametrize("offset,start", [(5.5, "2023-08-01 18:15"),
                                           (-3.5, "2023-08-02 03:15")])
 def test_observations_keep_local_midnight_boundary_with_fractional_offsets(offset, start):
