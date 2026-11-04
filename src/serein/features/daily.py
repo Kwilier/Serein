@@ -17,8 +17,10 @@ MIN_HOURS_DAILY = 18  # EPA 75% completeness rule
 
 def add_local_date(df: pd.DataFrame, offsets: pd.Series, time_col: str = "time_utc",
                    id_col: str = "point_id") -> pd.DataFrame:
+    """Apply fixed standard-time offsets; naive timestamps are interpreted as UTC."""
     off = df[id_col].map(offsets)
-    local = df[time_col] + pd.to_timedelta(off, unit="h")
+    utc = pd.to_datetime(df[time_col], utc=True).dt.tz_localize(None)
+    local = utc + pd.to_timedelta(off, unit="h")
     df = df.assign(local_date=local.dt.date, _off=off)
     return df
 

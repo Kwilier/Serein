@@ -7,6 +7,27 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("zone", ["UTC", "America/Los_Angeles", "Asia/Kolkata"])
+def test_daily_aggregation_uses_utc_instants_before_standard_time_offset(zone):
+    times = pd.date_range("2023-08-01 08:00", periods=24, freq="h")
+    aware = times.tz_localize("UTC").tz_convert(zone)
+    offsets = pd.Series({"A": -8})
+    hourly = pd.DataFrame({"site_id": "A", "time_utc": times, "pm25": np.arange(24.)})
+    expected_obs = obs_daily_means(hourly, offsets)
+    actual_obs = obs_daily_means(hourly.assign(time_utc=aware), offsets)
+    pd.testing.assert_frame_equal(actual_obs, expected_obs)
+    assert actual_obs["local_date"].tolist() == [date(2023, 8, 1)]
+    assert actual_obs["n_hours"].tolist() == [24]
+
+    forecast = hourly.rename(columns={"site_id": "point_id", "time_utc": "valid_utc",
+                                       "pm25": "value"}).assign(issue_date=date(2023, 8, 1))
+    expected_model = model_daily(forecast, offsets)
+    actual_model = model_daily(forecast.assign(valid_utc=aware), offsets)
+    pd.testing.assert_frame_equal(actual_model, expected_model)
+    assert actual_model["lead"].tolist() == [0]
+    assert actual_model["size"].tolist() == [24]
+
+
 @pytest.mark.parametrize("hours", [11, 12])
 def test_forecast_duplicates_do_not_inflate_daily_coverage(hours):
     forecast = pd.DataFrame({
