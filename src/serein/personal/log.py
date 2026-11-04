@@ -96,6 +96,8 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
     pm_by_day: {date: µg/m³}. Missing or nonfinite PM on today or either prior day
     excludes the row. Available readings must be nonnegative real numbers.
     """
+    if any(not isinstance(day, date) or isinstance(day, datetime) for day in pm_by_day):
+        raise TypeError("PM history keys must be calendar dates")
     X, y = [], []
     if not log.empty:
         log = log.copy()

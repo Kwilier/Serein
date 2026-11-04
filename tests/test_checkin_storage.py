@@ -7,6 +7,19 @@ import pytest
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
 
 
+@pytest.mark.parametrize("key", ["2026-11-04", datetime(2026, 11, 4),
+                                 pd.Timestamp("2026-11-04"), pd.NaT, None,
+                                 20261104, True, np.datetime64("2026-11-04")])
+def test_model_rows_rejects_noncalendar_exposure_keys(key):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    before = log.copy(deep=True)
+    pm = {key: 10.0}
+    with pytest.raises(TypeError, match="PM history keys.*calendar date"):
+        model_rows(log, pm)
+    pd.testing.assert_frame_equal(log, before)
+    assert list(pm) == [key]
+
+
 @pytest.mark.parametrize("value", [True, np.bool_(False), -1.0, "10", 2 + 1j,
                                   [10.0], np.array([10.0]), np.array(10.0)])
 @pytest.mark.parametrize("lag", [0, 1, 2])
