@@ -171,6 +171,8 @@ def demo(seed: int = 1, days: int = 60, language: str = "en") -> None:
     """Simulate one child, learn from `days` of logs, print tomorrow's plan."""
     from serein.personal.action_plan import make_plan
 
+    if isinstance(days, (bool, np.bool_)) or not isinstance(days, Integral) or days < 0:
+        raise ValueError("days must be a nonnegative integer")
     kid = simulate_children(1, seed)[0]
     pm = simulate_pm_season(days + 5, seed)
     log = simulate_log(kid, pm, seed)

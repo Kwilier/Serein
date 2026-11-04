@@ -7,6 +7,25 @@ from serein.personal.model import FEATURES, ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
+@pytest.mark.parametrize("days", [-1, -4, True, np.bool_(False), 1.5, np.nan, np.inf])
+def test_demo_rejects_invalid_logging_durations(days):
+    from serein.personal.simulate import demo
+
+    with pytest.raises(ValueError, match="days must be a nonnegative integer"):
+        demo(days=days)
+
+
+@pytest.mark.parametrize("days", [0, 1, np.int64(3)])
+def test_demo_supports_population_and_short_logs(days, capsys):
+    from serein.personal.simulate import demo
+
+    demo(days=days)
+    output = capsys.readouterr().out
+    assert f"After {days} logged days" in output
+    assert "clean day: zone" in output
+    assert "heavy smoke: zone" in output
+
+
 @pytest.mark.parametrize("days", [1, 2, 3])
 def test_short_synthetic_seasons_support_demo_logs(days):
     pm = simulate_pm_season(days, seed=3)
