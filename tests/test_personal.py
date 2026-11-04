@@ -99,6 +99,24 @@ def test_checkin_symptom_day_and_doctor_flag():
         CheckIn(date(2024, 9, 4), 5, 0, False, 0, False, False)
 
 
+@pytest.mark.parametrize("field,value", [
+    ("symptoms", 0.5), ("symptoms", 2.5),
+    ("puffs_bucket", 0.5), ("puffs_bucket", 2.5),
+    ("symptoms", np.nan), ("puffs_bucket", np.inf),
+    ("outdoor", 1.5),
+])
+def test_checkin_rejects_invalid_answer_choices(field, value):
+    from datetime import date
+
+    from serein.personal.log import CheckIn
+
+    answers = {"symptoms": 0, "puffs_bucket": 0, "outdoor": 1}
+    answers[field] = value
+    with pytest.raises(ValueError, match="check-in answer out of range"):
+        CheckIn(date(2023, 7, 1), night_wake=False, cold=False,
+                missed_controller=False, **answers)
+
+
 def test_log_keeps_last_submitted_checkin_for_each_day():
     from datetime import date, timedelta
 

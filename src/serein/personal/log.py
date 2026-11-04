@@ -45,7 +45,8 @@ class CheckIn:
     missed_controller: bool  # False if took it OR has no controller
 
     def __post_init__(self):
-        if not 0 <= self.symptoms <= 3 or not 0 <= self.puffs_bucket <= 3 or self.outdoor not in OUTDOOR_FRAC:
+        if (self.symptoms not in range(4) or self.puffs_bucket not in range(4)
+                or self.outdoor not in OUTDOOR_FRAC):
             raise ValueError("check-in answer out of range")
 
     @property
