@@ -46,7 +46,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
     """Sample AQM hourly PM2.5 at points. Output: point_id, valid_utc, step, value.
 
     Caches without matching points or all expected hours are rebuilt. Partial
-    results remain loadable. A failed rebuild raises if an old extraction exists,
+    results remain loadable. Missing in-grid samples also trigger a rebuild;
+    points outside the grid are allowed. A failed rebuild raises if an old extraction exists,
     preserving it without silently reusing it.
     """
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
@@ -57,6 +58,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
     if out_path.exists() and not overwrite:
         cached = pd.read_parquet(out_path)
         if (cached.attrs.get("aqm_points") == point_hash
+                and cached.attrs.get("aqm_samples_complete") is True
                 and set(range(hours)).issubset(cached["step"])):
             return cached
     blob = None
@@ -80,15 +82,19 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
                        points["lat"].to_numpy(), points["lon"].to_numpy(), max_km=10.0)
     t0 = datetime(d.year, d.month, d.day, cycle)
     rows = []
+    samples_complete = True
     for f in fields:
+        sampled = index.sample(f.values)
+        samples_complete &= bool(np.isfinite(sampled[index.valid]).all())
         rows.append(pd.DataFrame({
             "point_id": points["point_id"].to_numpy(),
             "valid_utc": t0 + timedelta(hours=f.start_step),
             "step": np.int16(f.start_step),
-            "value": index.sample(f.values),
+            "value": sampled,
         }))
     df = pd.concat(rows, ignore_index=True)
     df.attrs["aqm_points"] = point_hash
+    df.attrs["aqm_samples_complete"] = samples_complete
     df.to_parquet(out_path, index=False)
     return df
 

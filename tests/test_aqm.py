@@ -106,3 +106,36 @@ def test_partial_cycle_is_retried_until_all_hours_are_available(tmp_path, monkey
     assert complete["step"].tolist() == list(range(hours))
     pd.testing.assert_frame_equal(aqm.extract_cycle(day, points), complete)
     assert len(calls) == 2, "complete cycles should reuse the cache"
+
+
+@pytest.mark.parametrize("missing", [np.nan, np.inf, -np.inf])
+def test_nonfinite_in_grid_samples_are_retried(tmp_path, monkeypatch, missing):
+    monkeypatch.setattr(aqm, "interim_dir", lambda name: tmp_path)
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    calls = []
+
+    def fetch(*args, **kwargs):
+        calls.append(args[0])
+        return SimpleNamespace(content=b"cycle")
+
+    def decode(blob, with_grid=False):
+        fields = [GribField("pm25", "surface", h, h + 1,
+                            np.array([missing if h == 3 and len(calls) == 1 else 10.0]),
+                            "ug/m3") for h in range(72)]
+        return fields, ([0.0], [0.0])
+
+    monkeypatch.setattr(aqm, "get", fetch)
+    monkeypatch.setattr(aqm, "decode_messages", decode)
+    points = pd.DataFrame({"point_id": ["A", "outside"],
+                           "lat": [0.0, 40.0], "lon": [0.0, 0.0]})
+    day = date(2023, 8, 1)
+    partial = aqm.extract_cycle(day, points)
+    assert not np.isfinite(partial.loc[partial["step"] == 3, "value"]).any()
+    loaded = aqm.load_cycles([day])
+    pd.testing.assert_frame_equal(loaded.drop(columns="issue_date"), partial)
+    repaired = aqm.extract_cycle(day, points)
+    assert len(calls) == 2, "missing in-grid samples must trigger another download"
+    assert (repaired.loc[repaired["point_id"] == "A", "value"] == 10.0).all()
+    assert repaired.loc[repaired["point_id"] == "outside", "value"].isna().all()
+    pd.testing.assert_frame_equal(aqm.extract_cycle(day, points), repaired)
+    assert len(calls) == 2, "outside-grid points must not prevent cache reuse"
