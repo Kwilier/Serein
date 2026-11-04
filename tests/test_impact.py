@@ -6,6 +6,40 @@ import pytest
 from serein.eval.impact import impact, summary_text
 
 
+@pytest.mark.parametrize("field,value", [
+    ("usg_events", -1), ("usg_events", 1.5), ("usg_events", float("inf")),
+    ("n_area_days", -1), ("n_area_days", 20.5), ("n_area_days", float("nan")),
+    ("usg_events", 21), ("usg_pod", -0.1), ("usg_pod", 1.1),
+    ("usg_pod", float("nan")), ("usg_far", -0.1), ("usg_far", 1.1),
+    ("usg_far", float("inf")), ("usg_far", float("nan")), ("usg_far", 1.0),
+])
+def test_impact_rejects_malformed_counts_and_ratios(tmp_path, field, value):
+    rows = [
+        {"who": who, "lead": 1, "usg_events": 10, "n_area_days": 20,
+         "usg_pod": 0.5, "usg_far": 0.5}
+        for who in ("smokecast", "epa_forecast")
+    ]
+    for row in rows:
+        row[field] = value
+    pd.DataFrame(rows).to_csv(tmp_path / "vs_epa_forecast.csv", index=False)
+
+    with pytest.raises(ValueError):
+        impact(tmp_path)
+
+
+@pytest.mark.parametrize("events,pod,far", [(0, 0.0, 1.0), (10, 0.0, 0.5),
+                                           (10, 0.0, 0.0), (10, 0.5, 0.9)])
+def test_impact_rejects_impossible_warning_counts(tmp_path, events, pod, far):
+    pd.DataFrame([
+        {"who": who, "lead": 1, "usg_events": events, "n_area_days": 20,
+         "usg_pod": pod, "usg_far": far}
+        for who in ("smokecast", "epa_forecast")
+    ]).to_csv(tmp_path / "vs_epa_forecast.csv", index=False)
+
+    with pytest.raises(ValueError):
+        impact(tmp_path)
+
+
 @pytest.mark.parametrize("field", ["usg_events", "n_area_days"])
 def test_impact_rejects_mismatched_populations(tmp_path, field):
     rows = [

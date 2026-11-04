@@ -12,6 +12,7 @@ Scale: 4.8 million U.S. children (6.7%) have asthma (CDC, 2023 NHIS).
 
 from __future__ import annotations
 
+import math
 import sys
 from pathlib import Path
 
@@ -27,18 +28,37 @@ def impact(run: Path, lead: int = 1) -> dict:
         if (e.index == who).sum() != 1:
             raise ValueError(f"Expected exactly one {who} row for lead {lead}")
     for field in ("usg_events", "n_area_days"):
+        for who in ("smokecast", "epa_forecast"):
+            value = float(e.loc[who, field])
+            if not math.isfinite(value) or value < 0 or not value.is_integer():
+                raise ValueError(f"{who} {field} must be a nonnegative integer")
         if e.loc["smokecast", field] != e.loc["epa_forecast", field]:
             raise ValueError("Impact comparisons require the same reporting-area population "
                              f"for both forecasts ({field} differs)")
     ev = int(e.loc["smokecast", "usg_events"])
+    if ev > e.loc["smokecast", "n_area_days"]:
+        raise ValueError("Smoky days cannot exceed reporting-area days")
 
     def counts(who):
         pod, far = e.loc[who, "usg_pod"], e.loc[who, "usg_far"]
+        if ev:
+            if not 0 <= pod <= 1:
+                raise ValueError(f"{who} usg_pod must be between zero and one")
+        elif pd.notna(pod):
+            raise ValueError(f"{who} usg_pod must be undefined without smoky days")
+        if pd.notna(far) and not 0 <= far <= 1:
+            raise ValueError(f"{who} usg_far must be between zero and one")
         hits = pod * ev if ev else 0.0
+        if hits > 0 and (pd.isna(far) or far == 1):
+            raise ValueError(f"{who} usg_far is inconsistent with successful warnings")
+        if hits == 0 and pd.notna(far) and far != 1:
+            raise ValueError(f"{who} usg_far is inconsistent with no successful warnings")
         if hits == 0 and pd.isna(far):
             warnings = 0.0
         else:
             warnings = hits / (1 - far) if far < 1 else float("nan")
+        if warnings - hits > e.loc[who, "n_area_days"] - ev + 1e-8:
+            raise ValueError(f"{who} false alarms exceed nonsmoky reporting-area days")
         return {"warned_days": hits, "missed_days": ev - hits, "false_alarms": warnings - hits}
 
     s, p = counts("smokecast"), counts("epa_forecast")
