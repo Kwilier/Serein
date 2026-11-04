@@ -44,6 +44,9 @@ def _obs_features(hourly: pd.DataFrame, daily: pd.DataFrame, points: pd.DataFram
             raise ValueError(f"{name} contain missing point identifiers")
     if points["point_id"].duplicated().any():
         raise ValueError("points contain duplicate point identifiers")
+    daily = daily.assign(local_date=pd.to_datetime(daily["local_date"], format="mixed").dt.date)
+    if daily["local_date"].isna().any():
+        raise ValueError("daily observations contain missing dates")
     if daily.duplicated(["local_date", "point_id"]).any():
         raise ValueError("duplicate point/date pairs in daily observations")
     ids = points["point_id"].tolist()

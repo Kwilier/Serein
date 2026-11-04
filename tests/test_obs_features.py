@@ -8,6 +8,45 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+@pytest.mark.parametrize("missing", [None, pd.NaT, ""])
+def test_daily_targets_reject_missing_dates(missing):
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    daily = pd.DataFrame({"point_id": ["A"], "local_date": [missing], "pm25_daily": [20.0]})
+    points = pd.DataFrame({"point_id": ["A"]})
+    with pytest.raises(ValueError, match="daily observations contain missing dates"):
+        _obs_features(hourly, daily, points, [date(2023, 8, 1)], Availability(), [0])
+
+
+def test_daily_targets_normalize_calendar_dates_without_mutating_input():
+    day = date(2023, 8, 1)
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    daily = pd.DataFrame({
+        "point_id": ["A", "A", "A"],
+        "local_date": ["2023-07-31", pd.Timestamp("2023-08-01"), date(2023, 8, 2)],
+        "pm25_daily": [10.0, 20.0, 30.0],
+    })
+    original = daily.copy(deep=True)
+    points = pd.DataFrame({"point_id": ["A"]})
+    row = _obs_features(hourly, daily, points, [day], Availability(), [0, 1]).iloc[0]
+    assert row["obs_prevday"] == 10.0
+    assert row["y_L0"] == 20.0
+    assert row["y_L1"] == 30.0
+    pd.testing.assert_frame_equal(daily, original)
+
+
+def test_daily_targets_reject_duplicates_after_date_normalization():
+    day = date(2023, 8, 1)
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    daily = pd.DataFrame({"point_id": ["A", "A"], "local_date": [day, "2023-08-01"],
+                          "pm25_daily": [10.0, 30.0]})
+    points = pd.DataFrame({"point_id": ["A"]})
+    with pytest.raises(ValueError, match="duplicate.*daily"):
+        _obs_features(hourly, daily, points, [day], Availability(), [0])
+
+
 @pytest.mark.parametrize("source", ["hourly", "daily", "points"])
 def test_rolling_observations_reject_missing_point_identifiers(source):
     day = date(2023, 8, 1)
