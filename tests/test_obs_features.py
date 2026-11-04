@@ -1,4 +1,5 @@
 from datetime import date
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -6,6 +7,18 @@ import pytest
 
 from serein.data.availability import Availability
 from serein.features.table import _obs_features
+
+
+def test_build_table_rejects_empty_days_before_loading_data(monkeypatch):
+    from serein.features.table import build_table
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("empty date requests must not load cached observations")
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", unexpected_load)
+    with pytest.raises(ValueError, match="at least one issue date"):
+        build_table(SimpleNamespace(raw={}, leads=[0, 1]), [],
+                    pd.DataFrame({"point_id": ["A"], "gmt_offset": [-8]}))
 
 
 @pytest.mark.parametrize("missing", [None, pd.NaT, ""])
