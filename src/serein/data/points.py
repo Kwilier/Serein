@@ -45,6 +45,8 @@ def nearest_site_offset(lat, lon, sites: pd.DataFrame | None) -> np.ndarray:
 
 
 def grid_points(region: Region, step: float, sites: pd.DataFrame | None = None) -> pd.DataFrame:
+    if not np.isfinite(step) or step <= 0:
+        raise ValueError("grid step must be finite and positive")
     lats = np.arange(region.lat_min, region.lat_max + 1e-9, step)
     lons = np.arange(region.lon_min, region.lon_max + 1e-9, step)
     la, lo = np.meshgrid(lats, lons, indexing="ij")
@@ -69,7 +71,7 @@ def build_points(sites: pd.DataFrame, region: Region, grid_step: float | None,
         p["kind"] = "purpleair"
         p["gmt_offset"] = nearest_site_offset(p["lat"], p["lon"], s)
         parts.append(p[["point_id", "lat", "lon", "kind", "gmt_offset"]])
-    if grid_step:
+    if grid_step is not None:
         parts.append(grid_points(region, grid_step, s))
     pts = pd.concat(parts, ignore_index=True).drop_duplicates("point_id")
     return pts.reset_index(drop=True)
