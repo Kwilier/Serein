@@ -174,13 +174,18 @@ def test_daily_targets_reject_missing_dates(missing):
         _obs_features(hourly, daily, points, [date(2023, 8, 1)], Availability(), [0])
 
 
-def test_daily_targets_normalize_calendar_dates_without_mutating_input():
+@pytest.mark.parametrize("dates", [
+    ["2023-07-31", pd.Timestamp("2023-08-01"), date(2023, 8, 2)],
+    ["2023-07-31T23:00:00-07:00", pd.Timestamp("2023-08-01T01:00:00+02:00"),
+     date(2023, 8, 2)],
+])
+def test_daily_targets_normalize_calendar_dates_without_mutating_input(dates):
     day = date(2023, 8, 1)
     hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
                            "pm25": [10.0]})
     daily = pd.DataFrame({
         "point_id": ["A", "A", "A"],
-        "local_date": ["2023-07-31", pd.Timestamp("2023-08-01"), date(2023, 8, 2)],
+        "local_date": dates,
         "pm25_daily": [10.0, 20.0, 30.0],
     })
     original = daily.copy(deep=True)

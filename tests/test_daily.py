@@ -47,10 +47,12 @@ def test_forecast_rejects_issue_dates_that_parse_as_missing(missing):
     pd.testing.assert_frame_equal(data, original)
 
 
-def test_forecast_combines_equivalent_issue_date_representations():
+@pytest.mark.parametrize("third", [pd.Timestamp("2023-08-01"),
+                                  pd.Timestamp("2023-08-01T23:00:00-07:00")])
+def test_forecast_combines_equivalent_issue_date_representations(third):
     data = pd.DataFrame({
         "issue_date": pd.Series([
-            date(2023, 8, 1), "2023-08-01", pd.Timestamp("2023-08-01"),
+            date(2023, 8, 1), "2023-08-01", third,
         ], dtype=object),
         "point_id": "A",
         "valid_utc": ["2023-08-01 08:00", "2023-08-01 08:00", "2023-08-01 09:00"],

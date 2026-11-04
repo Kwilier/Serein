@@ -64,7 +64,8 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
             or not isinstance(min_count, (int, np.integer)) or min_count <= 0):
         raise ValueError("min_count must be a positive integer")
     d = df.copy()
-    d["issue_date"] = pd.to_datetime(d["issue_date"], format="mixed").dt.date
+    issue_dates = [pd.to_datetime(value, format="mixed") for value in d["issue_date"]]
+    d["issue_date"] = [pd.NaT if pd.isna(value) else value.date() for value in issue_dates]
     d["valid_utc"] = pd.to_datetime(d["valid_utc"], utc=True, format="mixed")
     if d["valid_utc"].isna().any():
         raise ValueError("valid_utc must not contain missing timestamps")
