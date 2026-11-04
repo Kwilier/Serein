@@ -140,10 +140,11 @@ def build_table(study: Study, days: list[date], points: pd.DataFrame,
                 use_firms: bool = True, progress: bool = True) -> pd.DataFrame:
     if not days:
         raise ValueError("feature table requires at least one issue date")
-    normalized = pd.to_datetime(days, format="mixed")
-    if normalized.isna().any():
+    # Issue days are calendar labels, so UTC conversion could change the day.
+    normalized = [pd.to_datetime(d, format="mixed") for d in days]
+    if any(pd.isna(d) for d in normalized):
         raise ValueError("feature table contains missing issue dates")
-    days = normalized.date.tolist()
+    days = [d.date() for d in normalized]
     if len(set(days)) != len(days):
         raise ValueError("feature table contains duplicate issue dates")
     if points.empty:

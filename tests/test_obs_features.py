@@ -9,6 +9,42 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+@pytest.mark.parametrize("days", [
+    ["2023-08-01T23:00:00-07:00", "2023-08-02T01:00:00+02:00"],
+    [date(2023, 8, 1), pd.Timestamp("2023-08-02T01:00:00+02:00")],
+])
+def test_build_table_preserves_calendar_dates_across_timezones(monkeypatch, days):
+    from serein.features.table import build_table
+
+    requested = []
+
+    def load_hourly(padded_days):
+        requested.extend(padded_days)
+        return pd.DataFrame()
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", load_hourly)
+    original = days.copy()
+    with pytest.raises(RuntimeError, match="No AirNow data"):
+        build_table(SimpleNamespace(raw={}, leads=[0]), days,
+                    pd.DataFrame({"point_id": ["A"], "gmt_offset": [-8]}))
+    assert requested == [date(2023, 7, 29), date(2023, 7, 30), date(2023, 7, 31),
+                         date(2023, 8, 1), date(2023, 8, 2), date(2023, 8, 3)]
+    assert days == original
+
+
+def test_build_table_rejects_duplicate_calendar_dates_across_timezones(monkeypatch):
+    from serein.features.table import build_table
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("duplicate dates must not load cached observations")
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", unexpected_load)
+    with pytest.raises(ValueError, match="duplicate issue dates"):
+        build_table(SimpleNamespace(raw={}, leads=[0]),
+                    ["2023-08-01T01:00:00+02:00", "2023-08-01T23:00:00-07:00"],
+                    pd.DataFrame({"point_id": ["A"], "gmt_offset": [-8]}))
+
+
 @pytest.mark.parametrize("other", ["2023-08-01", pd.Timestamp("2023-08-01T12:00:00")])
 def test_build_table_rejects_equivalent_issue_dates(monkeypatch, other):
     from serein.features.table import build_table
