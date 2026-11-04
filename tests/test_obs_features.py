@@ -366,6 +366,36 @@ def test_rolling_observations_reject_duplicate_daily_targets(values):
     pd.testing.assert_frame_equal(daily, original)
 
 
+def test_rolling_observation_windows_use_hour_boundaries():
+    day = date(2023, 8, 1)
+    av = Availability()
+    cutoff = pd.Timestamp(av.last_obs_hour_start(day))
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": [cutoff - pd.Timedelta(hours=23, seconds=1),
+                     cutoff - pd.Timedelta(hours=23) + pd.Timedelta(minutes=30),
+                     cutoff - pd.Timedelta(hours=5, seconds=1),
+                     cutoff - pd.Timedelta(hours=5) + pd.Timedelta(minutes=30),
+                     cutoff - pd.Timedelta(hours=2, seconds=1),
+                     cutoff - pd.Timedelta(hours=2) + pd.Timedelta(minutes=30),
+                     cutoff, cutoff + pd.Timedelta(seconds=1)],
+        "pm25": [1000.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 1000.0],
+    })
+    original = hourly.copy(deep=True)
+    daily = pd.DataFrame(columns=["local_date", "point_id", "pm25_daily"])
+    points = pd.DataFrame({"point_id": ["A"]})
+
+    row = _obs_features(hourly, daily, points, [day], av, [0]).iloc[0]
+
+    assert row["obs_last1"] == 60.0
+    assert row["obs_last3"] == pytest.approx(55.0)
+    assert row["obs_last6"] == pytest.approx(45.0)
+    assert row["obs_last24"] == pytest.approx(35.0)
+    assert row["obs_max24"] == 60.0
+    assert row["obs_n24"] == 6
+    pd.testing.assert_frame_equal(hourly, original)
+
+
 def test_daily_targets_reject_duplicate_calendar_dates_across_timezones():
     day = date(2023, 8, 1)
     hourly = pd.DataFrame(columns=["site_id", "time_utc", "pm25"])
