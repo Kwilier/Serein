@@ -209,6 +209,37 @@ def test_study_summary_rejects_zero_population_brier(personal_brier):
     pd.testing.assert_frame_equal(result, before)
 
 
+@pytest.mark.parametrize("column, value", [("kind", "other"), ("true_or", 999.0)])
+def test_study_summary_rejects_conflicting_child_attributes(column, value):
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=2, n_days=8, eval_days=3, ks=(0, 2))
+    result.loc[(result["child"] == 0) & (result["k"] == 2), column] = value
+    before = result.copy(deep=True)
+    with pytest.raises(ValueError, match=column):
+        summarize_study(result)
+    pd.testing.assert_frame_equal(result, before)
+
+
+def test_study_summary_rejects_reversed_sensitivity_intervals():
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=1, n_days=8, eval_days=3, ks=(0, 2))
+    result.loc[result["k"] == 2, ["or_lo", "or_hi"]] = [3.0, 2.0]
+    with pytest.raises(ValueError, match="interval"):
+        summarize_study(result)
+
+
+def test_study_summary_accepts_equal_sensitivity_bounds():
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=1, n_days=8, eval_days=3, ks=(0, 2))
+    result["or_lo"] = result["true_or"]
+    result["or_hi"] = result["true_or"]
+    summary = summarize_study(result)
+    assert (summary["or_ci_coverage"] == 1).all()
+
+
 def test_study_summary_accepts_numeric_objects_and_brier_endpoints():
     from serein.personal.simulate import run_study, summarize_study
 

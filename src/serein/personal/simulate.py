@@ -173,6 +173,11 @@ def summarize_study(df: pd.DataFrame) -> pd.DataFrame:
                 raise ValueError("study brier must be between 0 and 1")
         elif (d[column] <= 0).any():
             raise ValueError(f"study {column} must be positive")
+    if (d["or_lo"] > d["or_hi"]).any():
+        raise ValueError("study sensitivity interval lower bounds must not exceed upper bounds")
+    for column in ("kind", "true_or"):
+        if (d.groupby("child")[column].nunique() > 1).any():
+            raise ValueError(f"study {column} must be consistent across each child's durations")
     durations = []
     for value in d["k"]:
         try:
