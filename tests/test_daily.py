@@ -7,6 +7,30 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+def test_subhourly_observations_do_not_satisfy_daily_completeness():
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": pd.date_range("2023-08-01 08:00", periods=18, freq="5min"),
+        "pm25": 10.0,
+    })
+    original = hourly.copy(deep=True)
+    row = obs_daily_means(hourly, pd.Series({"A": -8})).iloc[0]
+    assert row["n_hours"] == 2
+    assert np.isnan(row["pm25_daily"])
+    pd.testing.assert_frame_equal(hourly, original)
+
+
+def test_daily_observations_weight_hours_equally_with_subhourly_samples():
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": ["2023-08-01 08:00", "2023-08-01 08:05", "2023-08-01 09:00"],
+        "pm25": [10.0, 30.0, 50.0],
+    })
+    row = obs_daily_means(hourly, pd.Series({"A": -8}), min_hours=2).iloc[0]
+    assert row["n_hours"] == 2
+    assert row["pm25_daily"] == pytest.approx(35.0)
+
+
 @pytest.mark.parametrize("offset", [np.nan, np.inf, -np.inf])
 @pytest.mark.parametrize("kind", ["obs", "forecast"])
 def test_daily_aggregation_rejects_nonfinite_site_offsets(kind, offset):

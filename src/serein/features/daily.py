@@ -31,12 +31,12 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
                     min_hours: int = MIN_HOURS_DAILY) -> pd.DataFrame:
     """Daily mean PM2.5; require min_hours distinct finite hours per local day.
 
-    Repeated site/timestamp readings are averaged before daily aggregation so
+    Readings within each UTC hour are averaged before daily aggregation so
     each hour has equal weight and counts only once toward completeness.
     """
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
-    h = h.assign(time_utc=pd.to_datetime(h["time_utc"], utc=True, format="mixed"))
+    h = h.assign(time_utc=pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.floor("h"))
     h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
     h = h.groupby(["point_id", "time_utc"], as_index=False)["pm25"].mean()
     h = add_local_date(h, offsets)
