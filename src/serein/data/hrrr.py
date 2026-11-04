@@ -13,6 +13,7 @@ decide by magnitude: a CONUS smoke field whose max is < 1 must be kg/m³.
 
 from __future__ import annotations
 
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 
@@ -89,12 +90,19 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
 
     Output columns: point_id, valid_utc, fhr, var, value.
     Use met_vars=None for default weather fields or [] for smoke only.
+    Caches without matching request metadata are rebuilt.
     """
     met_vars = DEFAULT_MET if met_vars is None else met_vars
+    point_hash = hashlib.sha256(pd.util.hash_pandas_object(
+        points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
+    request = {"points": point_hash, "max_fhr": max_fhr, "smoke_every": smoke_every,
+               "met_every": met_every, "met_vars": list(met_vars)}
     # Cached per study ("store"): different studies sample different points.
     out_path = interim_dir(f"{store}/hrrr") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
     if out_path.exists() and not overwrite:
-        return pd.read_parquet(out_path)
+        cached = pd.read_parquet(out_path)
+        if cached.attrs.get("hrrr_request") == request:
+            return cached
 
     jobs = []
     for fhr in range(max_fhr + 1):
@@ -144,6 +152,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
         return None
     df = pd.concat(rows, ignore_index=True)
     df["var"] = df["var"].astype("category")
+    df.attrs["hrrr_request"] = request
     df.to_parquet(out_path, index=False)
     return df
 
