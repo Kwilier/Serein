@@ -9,6 +9,24 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+@pytest.mark.parametrize("ids, message", [
+    (["A", "A"], "duplicate point identifiers"),
+    (["A", None], "missing point identifiers"),
+])
+def test_build_table_validates_point_ids_before_loading_data(monkeypatch, ids, message):
+    from serein.features.table import build_table
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("invalid point registries must not load cached observations")
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", unexpected_load)
+    points = pd.DataFrame({"point_id": ids, "gmt_offset": [-8, -7]})
+    original = points.copy(deep=True)
+    with pytest.raises(ValueError, match=message):
+        build_table(SimpleNamespace(raw={}, leads=[0, 1]), [date(2023, 8, 1)], points)
+    pd.testing.assert_frame_equal(points, original)
+
+
 def test_build_table_rejects_empty_points_before_loading_data(monkeypatch):
     from serein.features.table import build_table
 
