@@ -15,7 +15,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from numbers import Integral
+from math import isfinite
+from numbers import Integral, Real
 
 
 def validate_cycle_hour(cycle: int) -> None:
@@ -23,6 +24,13 @@ def validate_cycle_hour(cycle: int) -> None:
         raise TypeError("cycle must be an integer UTC hour")
     if not 0 <= cycle <= 23:
         raise ValueError("cycle must be between 0 and 23")
+
+
+def _validate_hours(name: str, value: float) -> None:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise TypeError(f"{name} must be a real number")
+    if not isfinite(value) or value < 0:
+        raise ValueError(f"{name} must be finite and nonnegative")
 
 
 @dataclass
@@ -33,6 +41,18 @@ class Availability:
     obs_lag_hours: float = 1.5
     hms_lag_days: int = 1
     firms_window_hours: float = 24
+
+    def __post_init__(self) -> None:
+        for name in ("issue_hour_utc", "obs_lag_hours", "firms_window_hours"):
+            _validate_hours(name, getattr(self, name))
+        if self.issue_hour_utc >= 24:
+            raise ValueError("issue_hour_utc must be less than 24")
+        validate_cycle_hour(self.hrrr_cycle)
+        validate_cycle_hour(self.aqm_cycle)
+        if isinstance(self.hms_lag_days, bool) or not isinstance(self.hms_lag_days, Integral):
+            raise TypeError("hms_lag_days must be an integer")
+        if self.hms_lag_days < 0:
+            raise ValueError("hms_lag_days must be nonnegative")
 
     @classmethod
     def from_study(cls, raw: dict) -> Availability:
@@ -56,6 +76,8 @@ class Availability:
 
     def check_model_cycle(self, d: date, cycle: int, posted_lag_hours: float) -> bool:
         """True if a model run of day d / cycle was public before issue time."""
+        validate_cycle_hour(cycle)
+        _validate_hours("posted_lag_hours", posted_lag_hours)
         posted = datetime(d.year, d.month, d.day, cycle) + timedelta(hours=posted_lag_hours)
         return posted <= self.issue_time(d)
 
