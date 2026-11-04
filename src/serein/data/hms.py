@@ -33,7 +33,10 @@ def download_day(d: date, overwrite: bool = False):
     r = get(URL.format(d=d), allow_404=True)
     if r is None:
         return None
-    path.write_bytes(r.content)
+    try:
+        path.write_bytes(r.content)
+    finally:
+        r.close()
     return path
 
 
@@ -92,7 +95,11 @@ def download_fire_day(d: date, overwrite: bool = False):
     r = get(FIRE_URL.format(d=d), allow_404=True)
     if r is None:
         return None
-    df = pd.read_csv(io.StringIO(r.text), skipinitialspace=True)
+    try:
+        text = r.text
+    finally:
+        r.close()
+    df = pd.read_csv(io.StringIO(text), skipinitialspace=True)
     df.columns = [c.strip().lower() for c in df.columns]
     t = pd.to_datetime(df["yearday"].astype(int).astype(str), format="%Y%j")
     hhmm = df["time"].astype(int)
