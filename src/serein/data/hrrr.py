@@ -93,6 +93,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     Caches without matching request metadata are rebuilt. A failed rebuild raises
     if an old extraction exists, preserving it without silently reusing it.
     Partial extractions remain loadable but are retried on the next extraction.
+    Missing samples within the grid are incomplete; points outside it are allowed.
     """
     if max_fhr < 0:
         raise ValueError("max_fhr must be nonnegative")
@@ -105,7 +106,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     met_vars = DEFAULT_MET if met_vars is None else met_vars
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
         points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
-    request = {"points": point_hash, "max_fhr": max_fhr, "smoke_every": smoke_every,
+    request = {"version": 2, "points": point_hash, "max_fhr": max_fhr, "smoke_every": smoke_every,
                "met_every": met_every, "met_vars": list(met_vars)}
     # Cached per study ("store"): different studies sample different points.
     out_path = interim_dir(f"{store}/hrrr") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
@@ -136,6 +137,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     index = None
     rows = []
     decoded = set()
+    samples_complete = True
     t0 = datetime(d.year, d.month, d.day, cycle)
     for fhr, blobs in results:
         if not blobs:
@@ -156,12 +158,14 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
                     vals = colmd_to_mgm2(f.values)
                 else:
                     vals = f.values
+                sampled = index.sample(vals)
+                samples_complete &= bool(np.isfinite(sampled[index.valid]).all())
                 rows.append(pd.DataFrame({
                     "point_id": points["point_id"].to_numpy(),
                     "valid_utc": t0 + timedelta(hours=fhr),
                     "fhr": np.int16(fhr),
                     "var": SHORT.get(name, name),
-                    "value": index.sample(vals),
+                    "value": sampled,
                 }))
     if not rows:
         if out_path.exists():
@@ -170,7 +174,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     df = pd.concat(rows, ignore_index=True)
     df["var"] = df["var"].astype("category")
     df.attrs["hrrr_request"] = request
-    df.attrs["hrrr_complete"] = all(
+    df.attrs["hrrr_complete"] = samples_complete and all(
         (fhr, name) in decoded for fhr, wanted in jobs for name in wanted)
     df.to_parquet(out_path, index=False)
     return df

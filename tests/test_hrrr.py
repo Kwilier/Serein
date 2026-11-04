@@ -8,6 +8,38 @@ from serein.data import grib, hrrr
 from serein.data.grib import GribField
 
 
+@pytest.mark.parametrize("missing", [np.nan, np.inf, -np.inf])
+def test_missing_in_grid_samples_are_retried(tmp_path, monkeypatch, missing):
+    monkeypatch.setattr(hrrr, "interim_dir", lambda name: tmp_path)
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    calls = []
+
+    def fetch(*args):
+        calls.append(args)
+        return [(hrrr.SMOKE, b"field")]
+
+    def decode(blob, with_grid=False):
+        value = missing if len(calls) == 1 else 10.0
+        field = GribField("smoke", "surface", 0, 0, np.array([value]), "ug/m3")
+        return [field], ([0.0], [0.0]) if with_grid else None
+
+    monkeypatch.setattr(hrrr, "_fetch_fields", fetch)
+    monkeypatch.setattr(hrrr, "decode_messages", decode)
+    points = pd.DataFrame({"point_id": ["inside", "outside"],
+                           "lat": [0.0, 20.0], "lon": [0.0, 20.0]})
+    day = date(2023, 8, 1)
+    kwargs = {"max_fhr": 0, "met_vars": [], "workers": 1}
+    partial = hrrr.extract_cycle(day, points, **kwargs)
+    assert not np.isfinite(partial["value"]).any()
+    assert len(hrrr.load_cycles([day])) == 2
+    complete = hrrr.extract_cycle(day, points, **kwargs)
+    assert len(calls) == 2, "missing in-grid samples must trigger a retry"
+    assert complete["value"].iloc[0] == 10.0
+    assert np.isnan(complete["value"].iloc[1])
+    pd.testing.assert_frame_equal(hrrr.extract_cycle(day, points, **kwargs), complete)
+    assert len(calls) == 2, "out-of-grid points must not force repeated downloads"
+
+
 @pytest.mark.parametrize("missing", ["hour", "field", "decoded"])
 def test_partial_cycle_is_retried_until_complete(tmp_path, monkeypatch, missing):
     monkeypatch.setattr(hrrr, "interim_dir", lambda name: tmp_path)
