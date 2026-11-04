@@ -67,3 +67,61 @@ def test_get_range_accepts_bounded_response_with_unknown_total(monkeypatch):
     monkeypatch.setattr(http, "get", lambda *args, **kwargs:
                         _response(206, b"abc", "bytes 10-12/*"))
     assert http.get_range("https://example.test/data", 10, 12) == b"abc"
+
+
+@pytest.mark.parametrize("status, allow_404", [(404, True), (404, False), (500, False)])
+def test_get_closes_discarded_responses(monkeypatch, status, allow_404):
+    response = _response(status, b"error")
+    closed = []
+    monkeypatch.setattr(response, "close", lambda: closed.append(True))
+    client = requests.Session()
+    monkeypatch.setattr(client, "get", lambda *args, **kwargs: response)
+    monkeypatch.setattr(http, "session", lambda: client)
+    if allow_404:
+        assert http.get("https://example.test/data", allow_404=True) is None
+    else:
+        with pytest.raises(requests.HTTPError) as error:
+            http.get("https://example.test/data")
+        assert error.value.response is response
+    assert closed == [True]
+
+
+def test_get_retries_connection_failures_and_preserves_request_options(monkeypatch):
+    response = _response(200, b"ok")
+    monkeypatch.setattr(response, "close", lambda: pytest.fail("caller owns successful response"))
+    calls, sleeps = [], []
+    client = requests.Session()
+
+    def request(url, **kwargs):
+        calls.append((url, kwargs))
+        if len(calls) < 3:
+            raise requests.ConnectionError("offline")
+        return response
+
+    monkeypatch.setattr(client, "get", request)
+    monkeypatch.setattr(http, "session", lambda: client)
+    monkeypatch.setattr(http.time, "sleep", sleeps.append)
+    options = {"headers": {"Range": "bytes=0-2"}, "params": {"day": "2026-11-04"},
+               "timeout": 12}
+    assert http.get("https://example.test/data", **options) is response
+    assert calls == [("https://example.test/data", options)] * 3
+    assert sleeps == [1, 2]
+
+
+def test_get_raises_last_connection_failure_after_retry_limit(monkeypatch):
+    failures = [requests.Timeout(str(index)) for index in range(3)]
+    calls, sleeps = [], []
+    client = requests.Session()
+
+    def request(*args, **kwargs):
+        calls.append(True)
+        raise failures[len(calls) - 1]
+
+    monkeypatch.setattr(client, "get", request)
+    monkeypatch.setattr(http, "session", lambda: client)
+    monkeypatch.setattr(http.time, "sleep", sleeps.append)
+    with pytest.raises(requests.Timeout) as error:
+        http.get("https://example.test/data")
+    assert error.value is failures[-1]
+    assert len(calls) == 3
+    assert sleeps == [1, 2]

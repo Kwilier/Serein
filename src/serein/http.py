@@ -41,8 +41,13 @@ def get(url: str, *, headers: dict | None = None, params: dict | None = None,
             time.sleep(2 ** attempt)
             continue
         if r.status_code == 404 and allow_404:
+            r.close()
             return None
-        r.raise_for_status()
+        try:
+            r.raise_for_status()
+        except requests.HTTPError:
+            r.close()
+            raise
         return r
     return None
 
