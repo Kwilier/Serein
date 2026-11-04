@@ -141,6 +141,17 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
             for sensor in cached["sensor_index"]
         ):
             raise ValueError("history cache sensor_index must match the requested sensor")
+        if not all(
+            isinstance(stamp, Real) and not isinstance(stamp, (bool, np.bool_))
+            and math.isfinite(stamp) and stamp == int(stamp)
+            and start.timestamp() <= stamp <= end.timestamp()
+            for stamp in cached["time_stamp"]
+        ):
+            raise ValueError("history cache time_stamp must contain whole seconds within the request")
+        expected = pd.to_datetime(cached["time_stamp"], unit="s", utc=True)
+        actual = pd.to_datetime(cached["time_utc"], utc=True, errors="coerce", format="mixed")
+        if not (actual == expected).all():
+            raise ValueError("history cache time_utc must match time_stamp")
         return cached
     parts, t = [], start
     while t < end:

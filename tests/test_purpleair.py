@@ -456,3 +456,47 @@ def test_history_rejects_cache_for_invalid_or_different_sensor(history_client, t
         purpleair.download_history(1, start, end)
     assert len(history_client) == 1
     assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("stamp", [None, np.nan, np.inf, True, "1688169600",
+                                   1688169600.5, 1688169599, 1688256001])
+def test_history_rejects_invalid_cached_timestamp(history_client, tmp_path, stamp):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=1)
+    frame = purpleair.download_history(1, start, end)
+    path = next(tmp_path.rglob("*.parquet"))
+    frame["time_stamp"] = stamp
+    frame.to_parquet(path, index=False)
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="history cache time_stamp"):
+        purpleair.download_history(1, start, end)
+    assert len(history_client) == 1
+    assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("utc", [None, "not a date", "2023-07-01 01:00:00"])
+def test_history_rejects_inconsistent_cached_utc(history_client, tmp_path, utc):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=1)
+    frame = purpleair.download_history(1, start, end)
+    path = next(tmp_path.rglob("*.parquet"))
+    frame["time_utc"] = utc
+    frame.to_parquet(path, index=False)
+    original = path.read_bytes()
+    with pytest.raises(ValueError, match="history cache time_utc"):
+        purpleair.download_history(1, start, end)
+    assert len(history_client) == 1
+    assert path.read_bytes() == original
+
+
+def test_history_accepts_cached_utc_with_equivalent_timezone(history_client, tmp_path):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=1)
+    frame = purpleair.download_history(1, start, end)
+    path = next(tmp_path.rglob("*.parquet"))
+    frame["time_stamp"] = frame["time_stamp"].astype(float)
+    frame["time_utc"] = frame["time_utc"].dt.tz_localize("UTC").dt.tz_convert("US/Pacific")
+    frame.to_parquet(path, index=False)
+    result = purpleair.download_history(1, start, end)
+    pd.testing.assert_frame_equal(result, frame)
+    assert len(history_client) == 1
