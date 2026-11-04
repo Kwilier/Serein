@@ -38,7 +38,7 @@ def build_knn_graph(lat, lon, k: int = 10, max_km: float = 300.0) -> Graph:
                     np.cos(np.radians(lat)) * np.sin(np.radians(lon)),
                     np.sin(np.radians(lat))], 1)
     tree = cKDTree(xyz)
-    kk = min(k + 1, len(lat))
+    kk = max(1, min(k + 1, len(lat)))
     _, nbr = tree.query(xyz, k=kk)
     src, dst = [], []
     for i in range(len(lat)):
