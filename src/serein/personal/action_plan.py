@@ -48,6 +48,16 @@ class Plan:
 
 def choose_zone(risk: float, baseline_risk: float, pm_median: float, pm_hi: float,
                 on: date | None = None) -> tuple[str, str]:
+    for name, value in (("risk", risk), ("baseline_risk", baseline_risk),
+                        ("pm_median", pm_median), ("pm_hi", pm_hi)):
+        if (isinstance(value, (bool, np.bool_))
+                or not isinstance(value, (int, float, np.integer, np.floating))
+                or not np.isfinite(value)):
+            raise ValueError(f"{name} must be a finite numeric scalar")
+        if value < 0 or (name in ("risk", "baseline_risk") and value > 1):
+            raise ValueError(f"{name} is outside its valid range")
+    if pm_hi < pm_median:
+        raise ValueError("pm_hi must be at least pm_median")
     cat_med = int(pm25_to_category(np.array([pm_median]), on)[0])
     cat_hi = int(pm25_to_category(np.array([pm_hi]), on)[0])
     zone, reason = 0, "personal_low"

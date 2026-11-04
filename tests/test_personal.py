@@ -438,3 +438,34 @@ def test_confounders_raise_risk_but_never_trigger_a_smoke_warning():
     x_none = design_row(20, 10, 10, 0.3, 0, 0)
     x_low = design_row(20, 10, 10, 0.3, 0, 0, ozone_ppb=25)
     assert np.array_equal(x_none, x_low)
+@pytest.mark.parametrize("field", ["risk", "baseline_risk", "pm_median", "pm_hi"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf, [0.1], "0.1", True])
+def test_choose_zone_rejects_invalid_scalars(field, value):
+    inputs = {"risk": 0.1, "baseline_risk": 0.1, "pm_median": 5.0, "pm_hi": 10.0}
+    inputs[field] = value
+    with pytest.raises(ValueError, match=field):
+        choose_zone(**inputs)
+
+
+@pytest.mark.parametrize("changes", [
+    {"risk": -0.1}, {"risk": 1.1}, {"baseline_risk": -0.1},
+    {"baseline_risk": 1.1}, {"pm_median": -1}, {"pm_hi": -1},
+    {"pm_median": 20, "pm_hi": 10},
+])
+def test_choose_zone_rejects_invalid_ranges(changes):
+    inputs = {"risk": 0.1, "baseline_risk": 0.1, "pm_median": 5.0, "pm_hi": 10.0}
+    inputs.update(changes)
+    with pytest.raises(ValueError):
+        choose_zone(**inputs)
+
+
+@pytest.mark.parametrize("risk,baseline,pm,expected", [
+    (0, 0, 0, ("green", "personal_low")),
+    (1, 1, 0, ("green", "personal_low")),
+    (1, 0, 0, ("red", "personal")),
+    (0, 0, 35.4, ("green", "personal_low")),
+    (0, 0, 35.5, ("yellow", "aqi_floor")),
+    (0, 0, 125.5, ("red", "aqi_floor")),
+])
+def test_choose_zone_accepts_endpoints_and_keeps_public_floors(risk, baseline, pm, expected):
+    assert choose_zone(np.float64(risk), np.int64(baseline), pm, pm) == expected
