@@ -117,3 +117,17 @@ def test_rolling_observations_weight_hours_equally_without_future_readings():
         assert row[column] == pytest.approx(50.0)
     assert row["obs_max24"] == 80.0
     pd.testing.assert_frame_equal(hourly, original)
+
+
+@pytest.mark.parametrize("values", [[10.0, 30.0], [10.0, 10.0], [10.0, np.nan]])
+def test_rolling_observations_reject_duplicate_daily_targets(values):
+    day = date(2023, 8, 1)
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    daily = pd.DataFrame({"point_id": ["A", "A"], "local_date": [day, day],
+                          "pm25_daily": values})
+    original = daily.copy(deep=True)
+    points = pd.DataFrame({"point_id": ["A"]})
+    with pytest.raises(ValueError, match="duplicate.*daily"):
+        _obs_features(hourly, daily, points, [day], Availability(), [0])
+    pd.testing.assert_frame_equal(daily, original)
