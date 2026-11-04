@@ -64,7 +64,7 @@ def to_frame(entries: list[CheckIn]) -> pd.DataFrame:
         return df
     df["day"] = pd.to_datetime(df["day"]).dt.date
     df["symptom_day"] = [e.symptom_day for e in entries]
-    return df.sort_values("day").drop_duplicates("day", keep="last").reset_index(drop=True)
+    return df.drop_duplicates("day", keep="last").sort_values("day").reset_index(drop=True)
 
 
 def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarray]:

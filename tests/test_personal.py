@@ -99,6 +99,25 @@ def test_checkin_symptom_day_and_doctor_flag():
         CheckIn(date(2024, 9, 4), 5, 0, False, 0, False, False)
 
 
+def test_log_keeps_last_submitted_checkin_for_each_day():
+    from datetime import date, timedelta
+
+    from serein.personal.log import CheckIn, to_frame
+
+    entries = [
+        CheckIn(date(2023, 7, 1) + timedelta(days=i % 3), i % 4, 0,
+                False, 1, False, False)
+        for i in range(40)
+    ]
+    expected = {entry.day: entry for entry in entries}
+    log = to_frame(entries)
+    assert list(log["day"]) == sorted(expected)
+    assert list(log.index) == list(range(len(expected)))
+    for row in log.itertuples():
+        assert row.symptoms == expected[row.day].symptoms
+        assert row.symptom_day == expected[row.day].symptom_day
+
+
 def test_log_joins_with_pm_and_fits():
     from datetime import date, timedelta
 
