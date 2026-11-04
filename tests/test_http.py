@@ -54,3 +54,16 @@ def test_get_range_rejects_invalid_bounds_before_request(monkeypatch, start, end
     monkeypatch.setattr(http, "get", unexpected)
     with pytest.raises(ValueError):
         http.get_range("https://example.test/data", start, end)
+
+
+def test_get_range_rejects_unverifiable_open_ended_response(monkeypatch):
+    monkeypatch.setattr(http, "get", lambda *args, **kwargs:
+                        _response(206, b"abc", "bytes 10-12/*"))
+    with pytest.raises(requests.RequestException, match="byte range"):
+        http.get_range("https://example.test/data", 10, None)
+
+
+def test_get_range_accepts_bounded_response_with_unknown_total(monkeypatch):
+    monkeypatch.setattr(http, "get", lambda *args, **kwargs:
+                        _response(206, b"abc", "bytes 10-12/*"))
+    assert http.get_range("https://example.test/data", 10, 12) == b"abc"

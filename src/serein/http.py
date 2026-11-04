@@ -64,6 +64,7 @@ def get_range(url: str, start: int, end: int | None) -> bytes:
     if total is not None:
         expected_last = total - 1 if end is None else min(end, total - 1)
     if (first != start or last < first or len(r.content) != last - first + 1
+            or (end is None and total is None)
             or (expected_last is not None and last != expected_last)):
         raise requests.RequestException("response does not match requested byte range", response=r)
     return r.content
