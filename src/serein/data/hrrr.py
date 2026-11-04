@@ -81,9 +81,6 @@ def _fetch_fields(d: date, cycle: int, fhr: int, wanted: list[str]):
     return blobs
 
 
-_GRID: tuple | None = None
-
-
 def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int = 48,
                   smoke_every: int = 1, met_every: int = 3,
                   met_vars: list[str] | None = None, overwrite: bool = False,
@@ -92,7 +89,6 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
 
     Output columns: point_id, valid_utc, fhr, var, value
     """
-    global _GRID
     met_vars = met_vars or DEFAULT_MET
     # Cached per study ("store"): different studies sample different points.
     out_path = interim_dir(f"{store}/hrrr") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
@@ -122,13 +118,11 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
         if not blobs:
             continue
         for name, blob in blobs:
-            fields, grid = decode_messages(blob, with_grid=_GRID is None)
+            fields, grid = decode_messages(blob, with_grid=index is None)
             if not fields:
                 continue
-            if grid is not None:
-                _GRID = grid
             if index is None:
-                index = PointIndex("hrrr", _GRID[0], _GRID[1],
+                index = PointIndex("hrrr", grid[0], grid[1],
                                    points["lat"].to_numpy(), points["lon"].to_numpy(),
                                    max_km=5.0)
             for f in fields:
