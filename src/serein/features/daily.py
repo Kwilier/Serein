@@ -19,6 +19,8 @@ def add_local_date(df: pd.DataFrame, offsets: pd.Series, time_col: str = "time_u
                    id_col: str = "point_id") -> pd.DataFrame:
     """Apply fixed standard-time offsets; naive timestamps are interpreted as UTC."""
     off = df[id_col].map(offsets)
+    if not np.isfinite(off).all():
+        raise ValueError("Each point must have a finite standard-time offset")
     utc = pd.to_datetime(df[time_col], utc=True, format="mixed").dt.tz_localize(None)
     local = utc + pd.to_timedelta(off, unit="h")
     df = df.assign(local_date=local.dt.date, _off=off)

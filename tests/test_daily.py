@@ -7,6 +7,29 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("offset", [np.nan, np.inf, -np.inf])
+@pytest.mark.parametrize("kind", ["obs", "forecast"])
+def test_daily_aggregation_rejects_nonfinite_site_offsets(kind, offset):
+    offsets = pd.Series({"A": offset})
+    frame = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01 08:00"],
+                          "pm25": [10.0]})
+    with pytest.raises(ValueError, match="offset"):
+        if kind == "obs":
+            obs_daily_means(frame, offsets, min_hours=1)
+        else:
+            forecast = frame.rename(columns={"site_id": "point_id", "time_utc": "valid_utc",
+                                             "pm25": "value"})
+            model_daily(forecast.assign(issue_date=date(2023, 8, 1)), offsets, min_count=1)
+
+
+def test_daily_aggregation_ignores_unused_invalid_offsets():
+    hourly = pd.DataFrame({"site_id": ["A", "outside"],
+                           "time_utc": ["2023-08-01 08:00"] * 2, "pm25": [10.0, 100.0]})
+    result = obs_daily_means(hourly, pd.Series({"A": -8.0, "unused": np.nan}), min_hours=1)
+    assert result["point_id"].tolist() == ["A"]
+    assert result["pm25_daily"].tolist() == [10.0]
+
+
 @pytest.mark.parametrize("kind,hours", [("obs", 17), ("forecast", 11)])
 def test_equivalent_timestamp_strings_count_as_one_hour(kind, hours):
     times = pd.date_range("2023-08-01 08:00", periods=hours, freq="h")
