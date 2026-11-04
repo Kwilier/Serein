@@ -343,6 +343,18 @@ def test_checkin_accepts_numpy_boolean_answers():
     assert entry.symptom_day == 0
 
 
+@pytest.mark.parametrize("missing_children", [(0,), (0, 1)])
+def test_study_summary_requires_population_baseline_for_each_child(missing_children):
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=2, n_days=6, eval_days=2, ks=(0, 2), seed=0)
+    incomplete = result[~((result["k"] == 0) & result["child"].isin(missing_children))]
+    original = incomplete.copy(deep=True)
+    with pytest.raises(ValueError, match="population baseline.*every child"):
+        summarize_study(incomplete)
+    pd.testing.assert_frame_equal(incomplete, original)
+
+
 def test_log_joins_with_pm_and_fits():
     from datetime import date, timedelta
 
