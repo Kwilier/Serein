@@ -1,9 +1,22 @@
 from datetime import UTC, datetime, timedelta, timezone
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from serein.data import purpleair
+
+
+def test_correction_broadcasts_constant_humidity_across_pm_readings():
+    pm = np.array([0.0, 20.0, 40.0, 100.0, 230.0, 300.0, np.nan])
+    expected = purpleair.epa_correction(pm, np.full(pm.shape, 40.0))
+    np.testing.assert_allclose(purpleair.epa_correction(pm, 40.0), expected)
+
+
+def test_correction_broadcasts_constant_pm_across_humidity_readings():
+    humidity = np.array([20.0, 40.0, 60.0])
+    expected = purpleair.epa_correction(np.full(humidity.shape, 20.0), humidity)
+    np.testing.assert_allclose(purpleair.epa_correction(20.0, humidity), expected)
 
 
 @pytest.mark.parametrize("a,b", [(-1, -1), (-100, 10), (1, -1), (-1, 1)])

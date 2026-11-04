@@ -139,10 +139,10 @@ def epa_correction(pa_cf1, rh):
     Barkjohn et al. (2021, AMT 14:4617) for typical levels, extended for wildfire
     smoke by Barkjohn et al. (2022, Sensors 22:9669). Input: mean cf_1 PM2.5 of
     channels A and B (µg/m³) and the sensor's relative humidity (%).
+    Inputs follow NumPy broadcasting rules, including scalar humidity.
     TODO(A-12): double-check coefficients against the papers before the final test.
     """
-    x = np.asarray(pa_cf1, dtype=float)
-    rh = np.asarray(rh, dtype=float)
+    x, rh = np.broadcast_arrays(np.asarray(pa_cf1, dtype=float), np.asarray(rh, dtype=float))
     out = np.full(x.shape, np.nan)
 
     m = x < 30
