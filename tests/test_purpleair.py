@@ -65,7 +65,10 @@ def test_clean_history_rejects_missing_sensor_identifiers(sensor):
     pd.testing.assert_frame_equal(frame, original)
 
 
-@pytest.mark.parametrize("stamp", [None, pd.NaT, "not a date", "2023-02-30"])
+@pytest.mark.parametrize("stamp", [
+    None, pd.NaT, "not a date", "2023-02-30", 1688169600, 1688169600.0,
+    np.int64(1688169600), np.float64(1688169600.0),
+])
 def test_clean_history_rejects_invalid_observation_times(stamp):
     frame = pd.DataFrame({
         "time_utc": ["2023-07-01 00:00:00", stamp],
