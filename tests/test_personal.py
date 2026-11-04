@@ -315,6 +315,28 @@ def test_forecast_risk_counts_the_smoky_tail():
     assert wide["hi"] > narrow["hi"]
 
 
+@pytest.mark.parametrize("quantiles", [
+    {}, {0.0: 10}, {1.0: 10}, {np.nan: 10}, {np.inf: 10},
+    {0.5: np.nan}, {0.5: np.inf}, {0.5: -1},
+    {0.05: 30, 0.5: 20, 0.95: 40},
+    {"0.5": 10}, {0.5: [10]}, {True: 10},
+])
+def test_forecast_risk_rejects_invalid_quantiles(quantiles):
+    with pytest.raises(ValueError, match="forecast quantiles"):
+        ChildModel().risk_under_forecast(quantiles, 5, 5, 0.3, 0, 0)
+
+
+def test_forecast_risk_accepts_single_and_unordered_quantiles():
+    model = ChildModel()
+    single = model.risk_under_forecast({0.5: 10}, 5, 5, 0.3, 0, 0)
+    constant = model.risk_under_forecast({0.95: 10, 0.05: 10, 0.5: 10},
+                                         5, 5, 0.3, 0, 0)
+    assert single == constant
+    for value in single.values():
+        assert np.isfinite(value)
+    assert 0 <= single["lo"] <= single["mean"] <= single["hi"] <= 1
+
+
 def test_sms_is_short_and_has_stop_and_911():
     from serein.personal.action_plan import render_sms, sms_segments
 

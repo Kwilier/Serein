@@ -38,6 +38,7 @@ docs/METHODS.md for the citations and caveats.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from numbers import Real
 from statistics import NormalDist
 
 import numpy as np
@@ -159,10 +160,24 @@ class ChildModel:
         """Integrate over BOTH the smoke forecast's uncertainty and the child model's.
 
         pm_quantiles: {0.05: x, 0.5: y, 0.95: z} from SmokeCast.
+        Probabilities must be inside (0, 1), with finite, nonnegative,
+        nondecreasing concentrations. A single quantile is a point forecast.
         """
-        rng = np.random.default_rng(seed)
+        if not pm_quantiles or any(
+            isinstance(q, (bool, np.bool_)) or not isinstance(q, Real)
+            or not np.isfinite(q) or not 0 < q < 1
+            for q in pm_quantiles
+        ):
+            raise ValueError("forecast quantiles need probabilities inside (0, 1)")
         qs = np.array(sorted(pm_quantiles))
-        vals = np.log1p(np.clip(np.array([pm_quantiles[q] for q in qs], dtype=float), 0, None))
+        concentrations = [pm_quantiles[q] for q in qs]
+        if any(isinstance(v, (bool, np.bool_)) or not isinstance(v, Real)
+               or not np.isfinite(v) or v < 0 for v in concentrations):
+            raise ValueError("forecast quantiles need finite nonnegative concentrations")
+        if np.any(np.diff(concentrations) < 0):
+            raise ValueError("forecast quantiles must have nondecreasing concentrations")
+        rng = np.random.default_rng(seed)
+        vals = np.log1p(np.array(concentrations, dtype=float))
         # Sample the WHOLE forecast distribution, tails included: piecewise-linear in
         # log(PM) vs. normal z-score, extended past the outer quantiles with the outer
         # slopes. (Sampling only between q05 and q95 would ignore the worst 5% of days.)
