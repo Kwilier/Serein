@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from serein.config import interim_dir
+from serein.data.availability import validate_cycle_hour
 from serein.data.grib import (
     PointIndex,
     decode_messages,
@@ -101,6 +102,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
     Partial extractions remain loadable but are retried on the next extraction.
     Missing samples within the grid are incomplete; points outside it are allowed.
     """
+    validate_cycle_hour(cycle)
     validate_point_coordinates(points["lat"], points["lon"])
     validate_point_ids(points["point_id"])
     for name, value in (("max_fhr", max_fhr), ("smoke_every", smoke_every),
@@ -193,6 +195,7 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
 
 
 def load_cycles(days: list[date], cycle: int = 12, store: str = "west_us") -> pd.DataFrame:
+    validate_cycle_hour(cycle)
     parts = []
     for d in days:
         p = interim_dir(f"{store}/hrrr") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"

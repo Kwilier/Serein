@@ -15,6 +15,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from numbers import Integral
+
+
+def validate_cycle_hour(cycle: int) -> None:
+    if isinstance(cycle, bool) or not isinstance(cycle, Integral):
+        raise TypeError("cycle must be an integer UTC hour")
+    if not 0 <= cycle <= 23:
+        raise ValueError("cycle must be between 0 and 23")
 
 
 @dataclass
