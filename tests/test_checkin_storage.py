@@ -34,3 +34,25 @@ def test_saved_checkins_preserve_model_rows(tmp_path):
     np.testing.assert_array_equal(X, expected_X)
     np.testing.assert_array_equal(y, expected_y)
     pd.testing.assert_frame_equal(restored, before)
+
+
+def test_loaded_duplicate_checkins_use_latest_entry(tmp_path):
+    first = CheckIn(date(2026, 11, 4), 0, 0, False, 0, False, False)
+    replacement = CheckIn(date(2026, 11, 4), 2, 1, True, 2, True, True)
+    next_day = CheckIn(date(2026, 11, 5), 0, 0, False, 1, False, False)
+    expected = to_frame([first, next_day, replacement])
+    loaded = pd.concat([to_frame([first, next_day]), to_frame([replacement])],
+                       ignore_index=True)
+    loaded.loc[2, "day"] = "2026-11-04"
+    pm = {date(2026, 11, day): float(day * 2) for day in range(2, 6)}
+    expected_X, expected_y = model_rows(expected, pm)
+    path = tmp_path / "duplicates.csv"
+    save_local(loaded, path)
+    for frame in (loaded, pd.read_csv(path)):
+        before = frame.copy(deep=True)
+        X, y = model_rows(frame, pm)
+        order = np.argsort(y)
+        expected_order = np.argsort(expected_y)
+        np.testing.assert_array_equal(X[order], expected_X[expected_order])
+        np.testing.assert_array_equal(y[order], expected_y[expected_order])
+        pd.testing.assert_frame_equal(frame, before)
