@@ -48,9 +48,17 @@ def _decode(blob: bytes, with_grid: bool):
         i = blob.find(b"GRIB", pos)
         if i < 0:
             break
+        if len(blob) - i < 16:
+            raise ValueError(f"Truncated GRIB header at byte {i}")
+        if blob[i + 7] != 2:
+            raise ValueError(f"Expected GRIB edition 2 at byte {i}")
         length = int.from_bytes(blob[i + 8:i + 16], "big")  # GRIB2 total length
+        if length < 20 or length > len(blob) - i:
+            raise ValueError(f"Invalid GRIB message length at byte {i}: {length}")
         msg = blob[i:i + length]
-        pos = i + max(length, 16)
+        if msg[-4:] != b"7777":
+            raise ValueError(f"Missing GRIB end marker at byte {i}")
+        pos = i + length
         h = eccodes.codes_new_from_message(msg)
         try:
             vals = eccodes.codes_get_values(h).astype(np.float32)
