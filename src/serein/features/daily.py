@@ -34,6 +34,9 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
     Readings within each UTC hour are averaged before daily aggregation so
     each hour has equal weight and counts only once toward completeness.
     """
+    if (isinstance(min_hours, (bool, np.bool_))
+            or not isinstance(min_hours, (int, np.integer)) or min_hours <= 0):
+        raise ValueError("min_hours must be a positive integer")
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
     h = h.assign(time_utc=pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.floor("h"))
@@ -53,6 +56,9 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
     lead = local_date - issue_date (days). Size counts distinct finite timestamps.
     Repeated values at a timestamp are averaged within each forecast group first.
     """
+    if (isinstance(min_count, (bool, np.bool_))
+            or not isinstance(min_count, (int, np.integer)) or min_count <= 0):
+        raise ValueError("min_count must be a positive integer")
     d = df.copy()
     d["valid_utc"] = pd.to_datetime(d["valid_utc"], utc=True, format="mixed")
     d[value_col] = d[value_col].where(np.isfinite(d[value_col]))

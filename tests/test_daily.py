@@ -250,3 +250,22 @@ def test_forecast_completeness_counts_nonmissing_values_per_variable(valid_hours
     temp = out.set_index("var").loc["t2m"]
     assert temp["size"] == 24
     assert temp["mean"] == pytest.approx(20.0)
+
+
+@pytest.mark.parametrize("threshold", [0, -1, 1.5, np.nan, np.inf, True])
+@pytest.mark.parametrize("kind", ["observation", "forecast"])
+def test_daily_rejects_invalid_completeness_threshold(kind, threshold):
+    offsets = pd.Series({"A": 0})
+    if kind == "observation":
+        data = pd.DataFrame({
+            "site_id": ["A"], "time_utc": ["2023-08-01"], "pm25": [10.0],
+        })
+        with pytest.raises(ValueError, match="min_hours must be a positive integer"):
+            obs_daily_means(data, offsets, min_hours=threshold)
+    else:
+        data = pd.DataFrame({
+            "issue_date": [date(2023, 8, 1)], "point_id": ["A"],
+            "valid_utc": ["2023-08-01"], "value": [10.0],
+        })
+        with pytest.raises(ValueError, match="min_count must be a positive integer"):
+            model_daily(data, offsets, min_count=threshold)
