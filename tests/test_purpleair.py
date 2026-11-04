@@ -164,6 +164,26 @@ def test_history_rejects_missing_requested_measurements(
     assert not list(tmp_path.rglob("*.parquet"))
 
 
+@pytest.mark.parametrize("metadata", [
+    {}, {"fields": None}, {"fields": "time_stamp,humidity"},
+    {"fields": {"time_stamp": 0, "humidity": 1}},
+    {"fields": ["time_stamp", None]}, {"fields": ["time_stamp", ["humidity"]]},
+    {"fields": ["time_stamp", ""]}, {"fields": ["time_stamp", 1]},
+])
+@pytest.mark.parametrize("rows", [[], [[1688169600, 40.0]]])
+def test_history_rejects_malformed_field_metadata(
+        history_client, monkeypatch, tmp_path, metadata, rows):
+    class Response:
+        def json(self):
+            return {**metadata, "data": rows}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="history response fields"):
+        purpleair.download_history(1, start, start + timedelta(days=1), fields=["humidity"])
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
 @pytest.mark.parametrize("stamp", [None, np.nan, np.inf, "invalid", True, 1688169600.5])
 def test_history_rejects_invalid_response_timestamps(history_client, monkeypatch, tmp_path, stamp):
     class Response:

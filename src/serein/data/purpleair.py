@@ -127,6 +127,11 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         js = r.json()
         if not isinstance(js, dict) or not isinstance(js.get("data"), list):
             raise ValueError("history response data must be a list")  # noqa: TRY004
+        response_fields = js.get("fields")
+        if not isinstance(response_fields, list) or not all(
+            isinstance(field, str) and field.strip() for field in response_fields
+        ):
+            raise ValueError("history response fields must be a list of nonblank names")
         if js["data"]:
             if not all(
                 isinstance(row, list) and len(row) == len(js["fields"])
