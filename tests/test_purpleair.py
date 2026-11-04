@@ -50,6 +50,38 @@ def test_clean_history_keeps_humidity_fallback_local_to_each_sensor():
     pd.testing.assert_frame_equal(frame, original)
 
 
+@pytest.mark.parametrize("sensor", [None, np.nan, pd.NA])
+def test_clean_history_rejects_missing_sensor_identifiers(sensor):
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=2, freq="h"),
+        "sensor_index": [1, sensor],
+        "pm2.5_cf_1_a": [20.0, 300.0],
+        "pm2.5_cf_1_b": [20.0, 300.0],
+        "humidity": [40.0, 40.0],
+    })
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="sensor_index.*missing"):
+        purpleair.clean_history(frame)
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_clean_history_preserves_row_alignment_with_duplicate_indices():
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=4, freq="h"),
+        "sensor_index": [1, 2, 1, 2],
+        "pm2.5_cf_1_a": [20.0, 20.0, 20.0, -1.0],
+        "pm2.5_cf_1_b": [20.0, 20.0, 20.0, -1.0],
+        "humidity": [20.0, 80.0, np.nan, np.nan],
+    }, index=[5, 5, 5, 5])
+    original = frame.copy(deep=True)
+    result = purpleair.clean_history(frame)
+    assert result["time_utc"].tolist() == frame["time_utc"].iloc[:3].tolist()
+    assert result["sensor_index"].tolist() == [1, 2, 1]
+    np.testing.assert_allclose(result["pm25"],
+                               purpleair.epa_correction([20.0] * 3, [20.0, 80.0, 20.0]))
+    pd.testing.assert_frame_equal(frame, original)
+
+
 def test_cost_estimate_rounds_fractional_points_up():
     prices = purpleair.PointPrices(base_per_call=0.25, per_field_row=0.1)
     estimate = purpleair.estimate_history_points(1, 1, fields=["humidity"], prices=prices)
