@@ -74,7 +74,8 @@ def to_frame(entries: list[CheckIn]) -> pd.DataFrame:
 def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarray]:
     """Join the log with OBSERVED daily PM2.5 near home -> (X, y) for ChildModel.fit.
 
-    pm_by_day: {date: µg/m³}. Days without PM for today or the 2 days before are skipped.
+    pm_by_day: {date: µg/m³}. Missing or nonfinite PM on today or either prior day
+    excludes the row.
     """
     X, y = [], []
     for r in log.itertuples():
@@ -82,7 +83,7 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
         pm0 = pm_by_day.get(d)
         pm1 = pm_by_day.get(d - pd.Timedelta(days=1).to_pytimedelta())
         pm2 = pm_by_day.get(d - pd.Timedelta(days=2).to_pytimedelta())
-        if pm0 is None or pm1 is None or pm2 is None:
+        if any(pd.isna(pm) or not np.isfinite(pm) for pm in (pm0, pm1, pm2)):
             continue
         X.append(design_row(pm0, pm1, pm2, OUTDOOR_FRAC[r.outdoor], int(r.cold),
                             int(r.missed_controller)))

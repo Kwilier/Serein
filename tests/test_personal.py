@@ -1,8 +1,9 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from serein.personal.action_plan import choose_zone, load_messages, make_plan
-from serein.personal.model import ChildModel, design_row
+from serein.personal.model import FEATURES, ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
@@ -237,6 +238,39 @@ def test_log_joins_with_pm_and_fits():
     assert len(y) == 88  # first 2 days lack lag PM
     m = fit_child(log, pm)
     assert m.sensitivity()["or_per_10"] > 1.2
+
+
+@pytest.mark.parametrize("missing", [None, np.nan, np.inf, -np.inf, pd.NA])
+@pytest.mark.parametrize("lag", [0, 1, 2])
+def test_model_rows_skips_unavailable_exposure(missing, lag):
+    from datetime import date, timedelta
+
+    from serein.personal.log import CheckIn, model_rows, to_frame
+
+    day = date(2023, 7, 3)
+    log = to_frame([CheckIn(day, 1, 0, False, 1, False, False)])
+    pm = {day - timedelta(days=i): 10.0 for i in range(3)}
+    pm[day - timedelta(days=lag)] = missing
+    X, y = model_rows(log, pm)
+    assert X.shape == (0, len(FEATURES))
+    assert y.shape == (0,)
+
+
+def test_model_rows_uses_calendar_lags_and_keeps_valid_days():
+    from datetime import date, timedelta
+
+    from serein.personal.log import CheckIn, model_rows, to_frame
+
+    start = date(2023, 7, 1)
+    days = [start + timedelta(days=i) for i in range(7)]
+    log = to_frame([CheckIn(d, i % 2, 0, False, 1, False, False)
+                    for i, d in enumerate(days)])
+    pm = {d: float(10 * i) for i, d in enumerate(days) if i != 3}
+    X, y = model_rows(log, pm)
+    expected = np.array([design_row(20, 10, 0, 0.3, 0, 0),
+                         design_row(60, 50, 40, 0.3, 0, 0)])
+    np.testing.assert_array_equal(X, expected)
+    np.testing.assert_array_equal(y, [0, 0])
 
 
 def test_forecast_risk_counts_the_smoky_tail():
