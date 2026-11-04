@@ -381,3 +381,23 @@ def test_history_rejects_subsecond_boundaries_before_cache_access(
     with pytest.raises(ValueError, match="whole seconds"):
         purpleair.download_history(1, start, end)
     assert not history_client
+
+
+@pytest.mark.parametrize("fields", [
+    None, "humidity", [], [""], [" "], [None], [1],
+    ["humidity", "humidity"], ["humidity,temperature"], [" humidity"],
+])
+@pytest.mark.parametrize("operation", ["estimate", "download"])
+def test_history_rejects_invalid_request_fields_before_io(
+        history_client, monkeypatch, fields, operation):
+    def unexpected_cache_access(source):
+        pytest.fail("invalid fields reached the cache")
+
+    monkeypatch.setattr(purpleair, "raw_dir", unexpected_cache_access)
+    with pytest.raises(ValueError, match="fields"):
+        if operation == "estimate":
+            purpleair.estimate_history_points(1, 1, fields=fields)
+        else:
+            start = datetime(2023, 7, 1)
+            purpleair.download_history(1, start, start + timedelta(days=1), fields=fields)
+    assert not history_client

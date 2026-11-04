@@ -37,6 +37,16 @@ def _headers() -> dict:
 
 
 # --------------------------------------------------------------------------- cost
+def _validate_history_fields(fields: list[str]) -> None:
+    if not isinstance(fields, list) or not fields or not all(
+        isinstance(field, str) and field and field == field.strip() and "," not in field
+        for field in fields
+    ):
+        raise ValueError("fields must be a nonempty list of nonblank, comma-free names")
+    if len(set(fields)) != len(fields):
+        raise ValueError("fields must be unique")
+
+
 @dataclass
 class PointPrices:
     """UPDATE these from the Developer Dashboard before trusting the estimate."""
@@ -52,6 +62,7 @@ def estimate_history_points(n_sensors: int, days: int, average_minutes: int = 60
 
     Counts must be integers; zero sensors or days produce a zero-cost estimate.
     """
+    _validate_history_fields(fields)
     prices = prices or PointPrices()
     for name, value, minimum in (
         ("n_sensors", n_sensors, 0), ("days", days, 0),
@@ -97,6 +108,7 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     Overlapping chunk timestamps keep the later response and are sorted in UTC.
     Range boundaries must use whole seconds to avoid API timestamp truncation.
     """
+    _validate_history_fields(fields)
     for name, value in (("max_days", max_days), ("average_minutes", average_minutes)):
         if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:
             raise ValueError(f"{name} must be a positive integer")
