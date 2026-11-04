@@ -112,6 +112,8 @@ class PointIndex:
 
     def __init__(self, grid_name: str, lat_grid, lon_grid, pt_lat, pt_lon,
                  max_km: float = 10.0):
+        if not np.isfinite(max_km) or max_km < 0:
+            raise ValueError("max_km must be finite and nonnegative")
         points_key = hashlib.sha1(
             np.ascontiguousarray(np.c_[pt_lat, pt_lon]).astype(np.float64).tobytes()
         ).hexdigest()[:12]

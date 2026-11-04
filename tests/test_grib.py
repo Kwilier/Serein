@@ -64,3 +64,19 @@ def test_point_index_radius_uses_surface_distance_including_cached_lookup(tmp_pa
         index = grib.PointIndex("test", [0.0], [0.0], [0.0], [90.0], max_km=10000.0)
         assert index.dist_km[0] == pytest.approx(np.pi * 6371.0 / 2)
         assert np.isnan(index.sample(np.array([10.0]))).all()
+
+
+@pytest.mark.parametrize("radius", [-1.0, float("nan"), float("inf"), -float("inf")])
+def test_point_index_rejects_invalid_radius_before_cache_access(monkeypatch, radius):
+    def unexpected(name):
+        pytest.fail("invalid radius must not access the cache")
+
+    monkeypatch.setattr(grib, "interim_dir", unexpected)
+    with pytest.raises(ValueError, match="max_km"):
+        grib.PointIndex("test", [0.0], [0.0], [0.0], [0.0], max_km=radius)
+
+
+def test_point_index_zero_radius_accepts_only_exact_grid_point(tmp_path, monkeypatch):
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    index = grib.PointIndex("test", [0.0], [0.0], [0.0, 0.0], [0.0, 0.01], max_km=0.0)
+    np.testing.assert_array_equal(index.sample(np.array([12.0])), [12.0, np.nan])
