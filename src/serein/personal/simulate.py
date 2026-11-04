@@ -12,6 +12,7 @@ where personal plans should beat one-size-fits-all advice.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Integral
 
 import numpy as np
 import pandas as pd
@@ -106,6 +107,16 @@ def run_study(n_children: int = 300, n_days: int = 150, eval_days: int = 50,
     smoke FORECAST (with error), as it would be live.
     k=0 is the one-size-fits-all population model. 'oracle' knows the true β.
     """
+    for name, value, minimum in (("n_children", n_children, 1), ("n_days", n_days, 4),
+                                 ("eval_days", eval_days, 1)):
+        if isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral) or value < minimum:
+            raise ValueError(f"{name} must be an integer >= {minimum}")
+    if eval_days >= n_days:
+        raise ValueError("eval_days must be smaller than n_days")
+    ks = tuple(ks)
+    if not ks or any(isinstance(k, (bool, np.bool_)) or not isinstance(k, Integral) or k < 0
+                     for k in ks):
+        raise ValueError("ks must contain nonnegative integer logging durations")
     kids = simulate_children(n_children, seed)
     rows = []
     for i, kid in enumerate(kids):

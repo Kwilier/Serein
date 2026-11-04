@@ -6,6 +6,59 @@ from serein.personal.model import ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
+@pytest.mark.parametrize("settings", [
+    {"eval_days": 151}, {"eval_days": 150}, {"eval_days": 0},
+    {"eval_days": -1}, {"eval_days": 1.5}, {"eval_days": True},
+    {"n_days": 3}, {"n_days": np.inf}, {"n_children": 0},
+    {"n_children": False}, {"ks": (-1,)}, {"ks": (1.5,)},
+    {"ks": (True,)}, {"ks": ()},
+])
+def test_study_rejects_invalid_splits_before_simulation(monkeypatch, settings):
+    from serein.personal import simulate
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("invalid study settings must fail before simulating children")
+
+    monkeypatch.setattr(simulate, "simulate_children", unexpected)
+    with pytest.raises(ValueError):
+        simulate.run_study(**settings)
+
+
+def test_study_keeps_training_before_evaluation(monkeypatch):
+    from serein.personal import simulate
+
+    fitted_pm = []
+    evaluated_pm = []
+    original_fit = ChildModel.fit
+    original_pred = simulate._pred
+    original_log = simulate.simulate_log
+
+    def fit(model, X, y):
+        fitted_pm.append(X[:, 1].copy())
+        return original_fit(model, X, y)
+
+    def predict(model, X):
+        evaluated_pm.append(X[:, 1].copy())
+        return original_pred(model, X)
+
+    monkeypatch.setattr(simulate, "simulate_pm_season",
+                        lambda n_days, seed: np.arange(10, 10 + n_days, dtype=float))
+    monkeypatch.setattr(simulate, "simulate_log",
+                        lambda kid, pm, seed: original_log(kid, pm, seed, forecast_error_sd=0))
+    monkeypatch.setattr(ChildModel, "fit", fit)
+    monkeypatch.setattr(simulate, "_pred", predict)
+    result = simulate.run_study(n_children=1, n_days=6, eval_days=2,
+                                ks=(0, 2, 100), seed=0)
+    assert result["k"].tolist() == [0, 2, 4, "oracle"]
+    assert np.isfinite(result[["brier", "logloss"]].to_numpy()).all()
+    assert len(fitted_pm) == 2
+    np.testing.assert_allclose(fitted_pm[0], np.arange(10, 12) / 10)
+    np.testing.assert_allclose(fitted_pm[1], np.arange(10, 14) / 10)
+    assert len(evaluated_pm) == 3
+    for pm in evaluated_pm:
+        np.testing.assert_allclose(pm, np.arange(14, 16) / 10)
+
+
 @pytest.mark.parametrize("pm", [[10.0], [10.0, 20.0], [10.0, 20.0, 40.0, 80.0]])
 def test_simulated_logs_use_past_exposure_with_initial_value_padding(pm):
     kid = SimChild(np.zeros(6), 0.3, 0.9, "test")
