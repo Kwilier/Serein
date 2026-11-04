@@ -22,6 +22,8 @@ use, night waking) and should be confirmed with a clinician (TODO C-8).
 
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import asdict, dataclass, fields
 from datetime import date, datetime
 from numbers import Integral, Real
@@ -149,4 +151,12 @@ def fit_child(log: pd.DataFrame, pm_by_day: dict) -> ChildModel:
 def save_local(log: pd.DataFrame, path: Path) -> None:
     """Save on THIS device only. Never commit or upload real logs."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    log.to_csv(path, index=False)
+    # A sibling file keeps replacement atomic on the destination filesystem.
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f"{path.name}.",
+                                     suffix=".tmp", delete=False) as stream:
+        temporary = Path(stream.name)
+    try:
+        log.to_csv(temporary, index=False)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)

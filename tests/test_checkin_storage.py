@@ -7,6 +7,54 @@ import pytest
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
 
 
+def test_failed_checkin_save_preserves_previous_log(tmp_path, monkeypatch):
+    path = tmp_path / "checkins.csv"
+    original = to_frame([CheckIn(date(2026, 11, 3), 1, 0, False, 1, False, False)])
+    save_local(original, path)
+    previous = path.read_bytes()
+    replacement = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 2, True, True)])
+
+    def interrupted_write(frame, destination, **kwargs):
+        with open(destination, "w") as stream:
+            stream.write("day,symptoms\n2026-")
+        raise OSError("interrupted write")
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", interrupted_write)
+    with pytest.raises(OSError, match="interrupted write"):
+        save_local(replacement, path)
+    assert path.read_bytes() == previous
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_checkin_save_replaces_existing_log(tmp_path):
+    path = tmp_path / "nested" / "checkins.csv"
+    save_local(to_frame([]), path)
+    replacement = to_frame([CheckIn(date(2026, 11, 4), 1, 0, False, 2, True, True)])
+    save_local(replacement, path)
+    restored = pd.read_csv(path)
+    assert restored["day"].tolist() == ["2026-11-04"]
+    assert restored["symptom_day"].tolist() == [1]
+    assert list(path.parent.iterdir()) == [path]
+
+
+def test_failed_checkin_replace_preserves_previous_log(tmp_path, monkeypatch):
+    path = tmp_path / "checkins.csv"
+    save_local(to_frame([]), path)
+    previous = path.read_bytes()
+    replacement = to_frame([CheckIn(date(2026, 11, 4), 1, 0, False, 2, True, True)])
+
+    def locked_destination(source, destination):
+        assert pd.read_csv(source)["day"].tolist() == ["2026-11-04"]
+        assert destination == path
+        raise PermissionError("destination is locked")
+
+    monkeypatch.setattr("serein.personal.log.os.replace", locked_destination)
+    with pytest.raises(PermissionError, match="locked"):
+        save_local(replacement, path)
+    assert path.read_bytes() == previous
+    assert list(tmp_path.iterdir()) == [path]
+
+
 @pytest.mark.parametrize("column", ["day", "cold", "missed_controller", "outdoor", "symptom_day"])
 @pytest.mark.parametrize("empty", [False, True])
 def test_model_rows_rejects_missing_required_columns(column, empty):
