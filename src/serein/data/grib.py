@@ -86,18 +86,23 @@ class PointIndex:
 
     def __init__(self, grid_name: str, lat_grid, lon_grid, pt_lat, pt_lon,
                  max_km: float = 10.0):
-        key = hashlib.sha1(
+        points_key = hashlib.sha1(
             np.ascontiguousarray(np.c_[pt_lat, pt_lon]).astype(np.float64).tobytes()
         ).hexdigest()[:12]
-        cache = interim_dir("grid_index") / f"{grid_name}_{len(lat_grid)}_{key}.npz"
+        grid_key = hashlib.sha1()
+        for coords in (lat_grid, lon_grid):
+            grid_key.update(np.ascontiguousarray(coords, dtype=np.float64).tobytes())
+        cache = interim_dir("grid_index") / (
+            f"{grid_name}_{len(lat_grid)}_{grid_key.hexdigest()[:12]}_{points_key}.npz"
+        )
         with _LOCK:
             self._load_or_build(cache, lat_grid, lon_grid, pt_lat, pt_lon)
         self.valid = self.dist_km <= max_km
 
     def _load_or_build(self, cache, lat_grid, lon_grid, pt_lat, pt_lon):
         if cache.exists():
-            z = np.load(cache)
-            self.idx, self.dist_km = z["idx"], z["dist_km"]
+            with np.load(cache) as z:
+                self.idx, self.dist_km = z["idx"], z["dist_km"]
         else:
             tree = cKDTree(_unit_xyz(lat_grid, lon_grid))
             d, idx = tree.query(_unit_xyz(pt_lat, pt_lon))
