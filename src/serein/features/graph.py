@@ -33,6 +33,10 @@ class Graph:
 
 
 def build_knn_graph(lat, lon, k: int = 10, max_km: float = 300.0) -> Graph:
+    if not isinstance(k, (int, np.integer)) or k < 0:
+        raise ValueError("k must be a nonnegative integer")
+    if not np.isfinite(max_km) or max_km <= 0:
+        raise ValueError("max_km must be finite and positive")
     lat, lon = np.asarray(lat, float), np.asarray(lon, float)
     xyz = np.stack([np.cos(np.radians(lat)) * np.cos(np.radians(lon)),
                     np.cos(np.radians(lat)) * np.sin(np.radians(lon)),

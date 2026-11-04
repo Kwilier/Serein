@@ -22,3 +22,15 @@ def test_graph_without_neighbors(lat, lon, k, max_km):
     means = idw_neighbor_mean(values, graph)
     assert means.shape == values.shape
     assert np.isnan(means).all()
+
+
+@pytest.mark.parametrize("k", [-1, 1.5])
+def test_graph_rejects_invalid_neighbor_count(k):
+    with pytest.raises(ValueError, match="k must be a nonnegative integer"):
+        build_knn_graph([38.0, 38.0], [-122.0, -122.0], k=k)
+
+
+@pytest.mark.parametrize("max_km", [0.0, -1.0, np.nan, np.inf])
+def test_graph_rejects_invalid_distance_limit(max_km):
+    with pytest.raises(ValueError, match="max_km must be finite and positive"):
+        build_knn_graph([38.0, 38.0], [-122.0, -122.0], max_km=max_km)
