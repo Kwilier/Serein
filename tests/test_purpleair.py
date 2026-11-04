@@ -7,6 +7,28 @@ import pytest
 from serein.data import purpleair
 
 
+@pytest.mark.parametrize("dtype", ["Float64", "Int64", object])
+@pytest.mark.parametrize("column", ["pm2.5_cf_1_a", "pm2.5_cf_1_b", "humidity"])
+def test_clean_history_accepts_nullable_measurements(dtype, column):
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=3, freq="h"),
+        "sensor_index": [1, 1, 1],
+        "pm2.5_cf_1_a": [20, 20, 300],
+        "pm2.5_cf_1_b": [20, 20, 300],
+        "humidity": [40, 40, 40],
+    })
+    frame[column] = pd.Series([40, pd.NA, pd.NA] if column == "humidity"
+                              else [20, pd.NA, 300], dtype=dtype)
+    original = frame.copy(deep=True)
+    reference = frame.copy(deep=True)
+    reference[column] = reference[column].to_numpy(dtype=float, na_value=np.nan)
+    expected = purpleair.clean_history(reference)
+    result = purpleair.clean_history(frame)
+    pd.testing.assert_frame_equal(result, expected)
+    assert len(result) == (3 if column == "humidity" else 2)
+    pd.testing.assert_frame_equal(frame, original)
+
+
 @pytest.mark.parametrize("kwargs", [
     {"n_sensors": -1}, {"days": -1}, {"average_minutes": 0},
     {"average_minutes": -10}, {"n_sensors": 1.5}, {"days": np.nan},
