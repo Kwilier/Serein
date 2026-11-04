@@ -65,6 +65,36 @@ def test_clean_history_rejects_missing_sensor_identifiers(sensor):
     pd.testing.assert_frame_equal(frame, original)
 
 
+@pytest.mark.parametrize("sensor", [0, -1, True, False, "1", "", 1.5, np.inf, -np.inf])
+def test_clean_history_rejects_invalid_sensor_identifiers(sensor):
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=2, freq="h"),
+        "sensor_index": pd.Series([1, sensor], dtype=object),
+        "pm2.5_cf_1_a": [20.0, 300.0],
+        "pm2.5_cf_1_b": [20.0, 300.0],
+        "humidity": [40.0, 40.0],
+    })
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="sensor_index.*positive integer"):
+        purpleair.clean_history(frame)
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_clean_history_accepts_numpy_integer_sensor_identifiers():
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=2, freq="h"),
+        "sensor_index": np.array([1, 2], dtype=np.int64),
+        "pm2.5_cf_1_a": [10.0, 20.0],
+        "pm2.5_cf_1_b": [10.0, 20.0],
+        "humidity": [40.0, 80.0],
+    })
+    original = frame.copy(deep=True)
+    result = purpleair.clean_history(frame)
+    pd.testing.assert_series_equal(result["sensor_index"], frame["sensor_index"])
+    np.testing.assert_allclose(result["pm25"], purpleair.epa_correction([10, 20], [40, 80]))
+    pd.testing.assert_frame_equal(frame, original)
+
+
 @pytest.mark.parametrize("stamp", [
     None, pd.NaT, "not a date", "2023-02-30", 1688169600, 1688169600.0,
     np.int64(1688169600), np.float64(1688169600.0),

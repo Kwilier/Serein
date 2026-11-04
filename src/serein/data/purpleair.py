@@ -269,6 +269,9 @@ def clean_history(df: pd.DataFrame) -> pd.DataFrame:
     """A/B QC + finite EPA corrections -> time_utc, sensor_index, pm25."""
     if df["sensor_index"].isna().any():
         raise ValueError("history sensor_index must not contain missing identifiers")
+    if any(isinstance(sensor, bool) or not isinstance(sensor, Integral) or sensor <= 0
+           for sensor in df["sensor_index"]):
+        raise ValueError("history sensor_index must contain positive integers")
     if any(isinstance(stamp, Real) for stamp in df["time_utc"]):
         raise ValueError("history time_utc must contain datetimes, not numeric timestamps")
     timestamps = pd.to_datetime(df["time_utc"], utc=True, errors="coerce", format="mixed")
