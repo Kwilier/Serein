@@ -7,6 +7,32 @@ import pytest
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
 
 
+@pytest.mark.parametrize("column", ["day", "cold", "missed_controller", "outdoor", "symptom_day"])
+@pytest.mark.parametrize("empty", [False, True])
+def test_model_rows_rejects_missing_required_columns(column, empty):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log = log.drop(columns=column)
+    if empty:
+        log = log.iloc[:0]
+    before = log.copy(deep=True)
+    with pytest.raises(ValueError, match="missing.*" + column):
+        model_rows(log, {})
+    pd.testing.assert_frame_equal(log, before)
+
+
+@pytest.mark.parametrize("column", ["day", "cold", "missed_controller", "outdoor", "symptom_day"])
+@pytest.mark.parametrize("empty", [False, True])
+def test_model_rows_rejects_duplicate_required_columns(column, empty):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log = pd.concat([log, log[[column]]], axis=1)
+    if empty:
+        log = log.iloc[:0]
+    before = log.copy(deep=True)
+    with pytest.raises(ValueError, match="duplicate.*" + column):
+        model_rows(log, {})
+    pd.testing.assert_frame_equal(log, before)
+
+
 @pytest.mark.parametrize("key", ["2026-11-04", datetime(2026, 11, 4),
                                  pd.Timestamp("2026-11-04"), pd.NaT, None,
                                  20261104, True, np.datetime64("2026-11-04")])

@@ -96,6 +96,13 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
     pm_by_day: {date: µg/m³}. Missing or nonfinite PM on today or either prior day
     excludes the row. Available readings must be nonnegative real numbers.
     """
+    required = ("day", "cold", "missed_controller", "outdoor", "symptom_day")
+    missing = [column for column in required if column not in log.columns]
+    if missing:
+        raise ValueError(f"check-in table missing required columns: {', '.join(missing)}")
+    duplicates = [column for column in required if (log.columns == column).sum() > 1]
+    if duplicates:
+        raise ValueError(f"check-in table has duplicate required columns: {', '.join(duplicates)}")
     if any(not isinstance(day, date) or isinstance(day, datetime) for day in pm_by_day):
         raise TypeError("PM history keys must be calendar dates")
     X, y = [], []
