@@ -9,6 +9,55 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+@pytest.mark.parametrize("other", ["2023-08-01", pd.Timestamp("2023-08-01T12:00:00")])
+def test_build_table_rejects_equivalent_issue_dates(monkeypatch, other):
+    from serein.features.table import build_table
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("duplicate date requests must not load cached observations")
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", unexpected_load)
+    with pytest.raises(ValueError, match="duplicate issue dates"):
+        build_table(SimpleNamespace(raw={}, leads=[0]), [date(2023, 8, 1), other],
+                    pd.DataFrame({"point_id": ["A"], "gmt_offset": [-8]}))
+
+
+@pytest.mark.parametrize("missing", [None, pd.NaT, ""])
+def test_build_table_rejects_missing_issue_dates(monkeypatch, missing):
+    from serein.features.table import build_table
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("missing date requests must not load cached observations")
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", unexpected_load)
+    with pytest.raises(ValueError, match="missing issue dates"):
+        build_table(SimpleNamespace(raw={}, leads=[0]), [date(2023, 8, 1), missing],
+                    pd.DataFrame({"point_id": ["A"], "gmt_offset": [-8]}))
+
+
+def test_build_table_normalizes_issue_dates_without_mutating_request(monkeypatch):
+    from serein.features.table import build_table
+
+    days = ["2023-08-01", pd.Timestamp("2023-08-02T12:00:00")]
+    original = days.copy()
+    points = pd.DataFrame({"point_id": ["A"], "gmt_offset": [-8],
+                           "lat": [40.0], "lon": [-120.0], "kind": ["epa"]})
+    hourly = pd.DataFrame({"site_id": ["A"], "time_utc": ["2023-08-01T16:00:00"],
+                           "pm25": [10.0]})
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", lambda days: hourly)
+    monkeypatch.setattr("serein.features.table.obs_daily_means", lambda *args: pd.DataFrame({
+        "point_id": ["A", "A"], "local_date": [date(2023, 8, 1), date(2023, 8, 2)],
+        "pm25_daily": [20.0, 30.0],
+    }))
+    monkeypatch.setattr("serein.features.table._model_features", lambda *args: pd.DataFrame())
+    monkeypatch.setattr("serein.features.table.hms.density_at_points", lambda *args: [0])
+    out = build_table(SimpleNamespace(raw={}, leads=[0], name="synthetic"), days, points,
+                      use_firms=False, progress=False)
+    assert out["issue_date"].tolist() == [date(2023, 8, 1), date(2023, 8, 2)]
+    assert out["y_L0"].tolist() == [20.0, 30.0]
+    assert days == original
+
+
 @pytest.mark.parametrize("offset", [np.nan, np.inf, -np.inf])
 def test_build_table_validates_all_offsets_before_loading_data(monkeypatch, offset):
     from serein.features.table import build_table
