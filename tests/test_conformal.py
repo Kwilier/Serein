@@ -181,3 +181,25 @@ def test_missing_medians_do_not_contaminate_smoke_group(missing):
     assert model.qhat[(0, -1)] == 10.0
     assert model.qhat[(0, 2)] == 1.0
     assert set(model.qhat) == {(0, -1), (0, 2)}
+
+
+def test_descending_unsigned_bins_are_rejected_before_refit():
+    model = CQR(bins=np.array([10, 5], dtype=np.uint8), qhat={(0, -1): 0.75})
+    values = np.zeros((3, 1))
+    with pytest.raises(ValueError, match="bins"):
+        model.fit(values, values, values, values)
+    assert model.qhat == {(0, -1): 0.75}
+    with pytest.raises(ValueError, match="bins"):
+        model.apply(values, values, values)
+
+
+def test_widely_spaced_signed_bins_match_float_bins():
+    bins = np.array([-100, 100], dtype=np.int8)
+    median = np.array([[-110.0], [0.0], [110.0]])
+    lo, hi = median - 1, median + 1
+    actual = CQR(bins=bins).fit(lo, hi, median, median + 2)
+    expected = CQR(bins=bins.astype(float)).fit(lo, hi, median, median + 2)
+    np.testing.assert_array_equal(actual.group(median), [[0], [1], [2]])
+    assert actual.qhat == expected.qhat
+    for result, reference in zip(actual.apply(lo, hi, median), expected.apply(lo, hi, median)):
+        np.testing.assert_array_equal(result, reference)

@@ -51,7 +51,7 @@ class CQR:
         if not np.isscalar(self.alpha) or not np.isfinite(self.alpha) or not 0 <= self.alpha <= 1:
             raise ValueError("alpha must be finite and between 0 and 1")
         bins = np.asarray(self.bins)
-        if bins.ndim != 1 or not np.isfinite(bins).all() or not (np.diff(bins) > 0).all():
+        if bins.ndim != 1 or not np.isfinite(bins).all() or not (bins[1:] > bins[:-1]).all():
             raise ValueError("bins must be finite, one-dimensional, and strictly increasing")
 
     def group(self, median: np.ndarray) -> np.ndarray:
