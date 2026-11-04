@@ -9,6 +9,21 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+@pytest.mark.parametrize("offset", [np.nan, np.inf, -np.inf])
+def test_build_table_validates_all_offsets_before_loading_data(monkeypatch, offset):
+    from serein.features.table import build_table
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("invalid offsets must not load cached observations")
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", unexpected_load)
+    points = pd.DataFrame({"point_id": ["monitor", "grid"], "gmt_offset": [-8, offset]})
+    original = points.copy(deep=True)
+    with pytest.raises(ValueError, match="finite standard-time offset"):
+        build_table(SimpleNamespace(raw={}, leads=[0, 1]), [date(2023, 8, 1)], points)
+    pd.testing.assert_frame_equal(points, original)
+
+
 @pytest.mark.parametrize("ids, message", [
     (["A", "A"], "duplicate point identifiers"),
     (["A", None], "missing point identifiers"),

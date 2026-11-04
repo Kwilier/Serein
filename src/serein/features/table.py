@@ -151,6 +151,8 @@ def build_table(study: Study, days: list[date], points: pd.DataFrame,
     av = Availability.from_study(study.raw)
     leads = study.leads
     offsets = points.set_index("point_id")["gmt_offset"]
+    if not np.isfinite(offsets).all():
+        raise ValueError("Each point must have a finite standard-time offset")
 
     pad = sorted({d + timedelta(days=k) for d in days for k in range(-3, max(leads) + 2)})
     hourly = airnow.load_hourly(pad)
