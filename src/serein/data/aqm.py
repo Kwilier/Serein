@@ -45,7 +45,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
                   store: str = "west_us") -> pd.DataFrame | None:
     """Sample AQM hourly PM2.5 at points. Output: point_id, valid_utc, step, value.
 
-    Caches without matching point metadata are rebuilt.
+    Caches without matching point metadata are rebuilt. A failed rebuild raises
+    if an old extraction exists, preserving it without silently reusing it.
     """
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
         points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
@@ -62,11 +63,15 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
             blob = r.content
             break
     if blob is None:
+        if out_path.exists():
+            raise RuntimeError(f"Cannot rebuild cached extraction {out_path}: no AQM data")
         return None
     # AQM version changes can move cells without changing the grid dimensions.
     fields, grid = decode_messages(blob, with_grid=True)
     fields = [f for f in fields if f.end_step - f.start_step == 1]
     if not fields:
+        if out_path.exists():
+            raise RuntimeError(f"Cannot rebuild cached extraction {out_path}: no hourly fields")
         return None
     index = PointIndex(f"aqm{len(grid[0])}", grid[0], grid[1],
                        points["lat"].to_numpy(), points["lon"].to_numpy(), max_km=10.0)

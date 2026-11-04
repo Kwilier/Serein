@@ -90,7 +90,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
 
     Output columns: point_id, valid_utc, fhr, var, value.
     Use met_vars=None for default weather fields or [] for smoke only.
-    Caches without matching request metadata are rebuilt.
+    Caches without matching request metadata are rebuilt. A failed rebuild raises
+    if an old extraction exists, preserving it without silently reusing it.
     """
     if max_fhr < 0:
         raise ValueError("max_fhr must be nonnegative")
@@ -126,6 +127,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
         results = list(ex.map(lambda j: (j[0], _fetch_fields(d, cycle, j[0], j[1])), jobs))
 
     if all(b is None for _, b in results):
+        if out_path.exists():
+            raise RuntimeError(f"Cannot rebuild cached extraction {out_path}: no HRRR data")
         return None
 
     index = None
@@ -157,6 +160,8 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
                     "value": index.sample(vals),
                 }))
     if not rows:
+        if out_path.exists():
+            raise RuntimeError(f"Cannot rebuild cached extraction {out_path}: no decoded fields")
         return None
     df = pd.concat(rows, ignore_index=True)
     df["var"] = df["var"].astype("category")
