@@ -87,9 +87,10 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12, max_fhr: int =
                   workers: int = 12, store: str = "west_us") -> pd.DataFrame | None:
     """Sample HRRR smoke + weather at points for one cycle. Cached as parquet.
 
-    Output columns: point_id, valid_utc, fhr, var, value
+    Output columns: point_id, valid_utc, fhr, var, value.
+    Use met_vars=None for default weather fields or [] for smoke only.
     """
-    met_vars = met_vars or DEFAULT_MET
+    met_vars = DEFAULT_MET if met_vars is None else met_vars
     # Cached per study ("store"): different studies sample different points.
     out_path = interim_dir(f"{store}/hrrr") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
     if out_path.exists() and not overwrite:
