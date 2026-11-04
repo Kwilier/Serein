@@ -9,6 +9,39 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+def test_rolling_observations_align_categorical_station_ids():
+    day = date(2023, 8, 1)
+    hourly = pd.DataFrame({
+        "site_id": pd.Categorical(["A", "B", "A", "B"], categories=["unused", "B", "A"]),
+        "time_utc": ["2023-08-01T15:00:00", "2023-08-01T15:00:00",
+                     "2023-08-01T16:00:00", "2023-08-01T16:00:00"],
+        "pm25": [10.0, 40.0, 20.0, 60.0],
+    })
+    daily = pd.DataFrame({
+        "point_id": pd.Categorical(["A", "B", "A", "B"], categories=["A", "unused", "B"]),
+        "local_date": [date(2023, 7, 31), date(2023, 7, 31), day, day],
+        "pm25_daily": [12.0, 45.0, 25.0, 70.0],
+    })
+    points = pd.DataFrame({
+        "point_id": pd.Categorical(["B", "C", "A"], categories=["C", "A", "B", "unused"]),
+    })
+    originals = [frame.copy(deep=True) for frame in (hourly, daily, points)]
+    out = _obs_features(hourly, daily, points, [day], Availability(), [0])
+    assert out["point_id"].tolist() == ["B", "C", "A"]
+    out = out.set_index("point_id")
+    for station, last, mean, previous, target in (("A", 20.0, 15.0, 12.0, 25.0),
+                                                ("B", 60.0, 50.0, 45.0, 70.0)):
+        assert out.loc[station, "obs_last1"] == last
+        assert out.loc[station, "obs_last24"] == mean
+        assert out.loc[station, "obs_n24"] == 2
+        assert out.loc[station, "obs_prevday"] == previous
+        assert out.loc[station, "y_L0"] == target
+    assert out.loc["C", "obs_n24"] == 0
+    assert out.loc["C", ["obs_last1", "obs_last24", "obs_prevday", "y_L0"]].isna().all()
+    for frame, original in zip((hourly, daily, points), originals):
+        pd.testing.assert_frame_equal(frame, original)
+
+
 @pytest.mark.parametrize("days", [
     ["2023-08-01T23:00:00-07:00", "2023-08-02T01:00:00+02:00"],
     [date(2023, 8, 1), pd.Timestamp("2023-08-02T01:00:00+02:00")],
