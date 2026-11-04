@@ -124,3 +124,24 @@ def test_bootstrap_accepts_numpy_count_and_repeats_seeded_day_resampling():
     assert result["ci_lo"] <= result["diff"] <= result["ci_hi"]
     assert 0 <= result["p_a_better"] <= 1
     assert bootstrap_rmse_diff([1], [2], [1], [0], n_boot=1) == {}
+
+
+@pytest.mark.parametrize("dates", [
+    np.array([0., 1., 2., 3., np.nan]),
+    np.array(["2023-01-01", "2023-01-02", "2023-01-03", "2023-01-04", "NaT"],
+             dtype="datetime64[D]"),
+    np.array(["a", "b", "c", "d", None], dtype=object),
+])
+def test_bootstrap_rejects_missing_dates_for_scoreable_rows(dates):
+    with pytest.raises(ValueError, match="missing dates"):
+        bootstrap_rmse_diff(np.zeros(5), np.ones(5), np.ones(5), dates, n_boot=10)
+
+
+def test_bootstrap_ignores_missing_dates_on_unscoreable_rows():
+    dates = np.array([0., 1., 2., 3., 4., np.nan])
+    result = bootstrap_rmse_diff(
+        [0., 0., 0., 0., 0., np.nan], np.ones(6), np.ones(6), dates, n_boot=10,
+    )
+    assert result == bootstrap_rmse_diff(
+        np.zeros(5), np.ones(5), np.ones(5), dates[:5], n_boot=10,
+    )

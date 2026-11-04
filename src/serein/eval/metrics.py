@@ -15,6 +15,7 @@ coverage90 / width90   how often truth fell in the 90% range, and how wide it wa
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 
 from serein.aqi import USG_THRESHOLD, pm25_to_category
 
@@ -98,6 +99,8 @@ def bootstrap_rmse_diff(pred_a, pred_b, obs, dates, n_boot: int = 1000, seed: in
     ok = np.isfinite(pred_a) & np.isfinite(pred_b) & np.isfinite(obs)
     a2, b2 = (pred_a[ok] - obs[ok]) ** 2, (pred_b[ok] - obs[ok]) ** 2
     dd = np.asarray(dates)[ok]
+    if pd.isna(dd).any():
+        raise ValueError("scoreable rows must not have missing dates")
     days, inv = np.unique(dd, return_inverse=True)
     if len(days) < 5:
         return {}
