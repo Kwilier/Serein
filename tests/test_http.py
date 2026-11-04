@@ -8,6 +8,7 @@ def _response(status, body, content_range=None):
     response = requests.Response()
     response.status_code = status
     response._content = body
+    response._content_consumed = True
     if content_range is not None:
         response.headers["Content-Range"] = content_range
     return response
@@ -67,6 +68,26 @@ def test_get_range_accepts_bounded_response_with_unknown_total(monkeypatch):
     monkeypatch.setattr(http, "get", lambda *args, **kwargs:
                         _response(206, b"abc", "bytes 10-12/*"))
     assert http.get_range("https://example.test/data", 10, 12) == b"abc"
+
+
+@pytest.mark.parametrize("status, body, header", [
+    (206, b"abc", "bytes 10-12/20"),
+    (200, b"whole file", None),
+    (206, b"abc", None),
+    (206, b"ab", "bytes 10-12/20"),
+])
+def test_get_range_closes_consumed_and_rejected_responses(monkeypatch, status, body, header):
+    response = _response(status, body, header)
+    closed = []
+    monkeypatch.setattr(response, "close", lambda: closed.append(True))
+    monkeypatch.setattr(http, "get", lambda *args, **kwargs: response)
+    if status == 206 and header is not None and body == b"abc":
+        assert http.get_range("https://example.test/data", 10, 12) == b"abc"
+    else:
+        with pytest.raises(requests.RequestException) as error:
+            http.get_range("https://example.test/data", 10, 12)
+        assert error.value.response is response
+    assert closed == [True]
 
 
 @pytest.mark.parametrize("status, allow_404", [(404, True), (404, False), (500, False)])

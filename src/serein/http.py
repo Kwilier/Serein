@@ -60,16 +60,19 @@ def get_range(url: str, start: int, end: int | None) -> bytes:
         raise ValueError("invalid byte range")
     rng = f"bytes={start}-" if end is None else f"bytes={start}-{end}"
     r = get(url, headers={"Range": rng}, timeout=120)
-    match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+|\*)", r.headers.get("Content-Range", ""))
-    if r.status_code != 206 or match is None:
-        raise requests.RequestException("server did not return a byte range", response=r)
-    first, last = int(match[1]), int(match[2])
-    total = None if match[3] == "*" else int(match[3])
-    expected_last = end
-    if total is not None:
-        expected_last = total - 1 if end is None else min(end, total - 1)
-    if (first != start or last < first or len(r.content) != last - first + 1
-            or (end is None and total is None)
-            or (expected_last is not None and last != expected_last)):
-        raise requests.RequestException("response does not match requested byte range", response=r)
-    return r.content
+    try:
+        match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+|\*)", r.headers.get("Content-Range", ""))
+        if r.status_code != 206 or match is None:
+            raise requests.RequestException("server did not return a byte range", response=r)
+        first, last = int(match[1]), int(match[2])
+        total = None if match[3] == "*" else int(match[3])
+        expected_last = end
+        if total is not None:
+            expected_last = total - 1 if end is None else min(end, total - 1)
+        if (first != start or last < first or len(r.content) != last - first + 1
+                or (end is None and total is None)
+                or (expected_last is not None and last != expected_last)):
+            raise requests.RequestException("response does not match requested byte range", response=r)
+        return r.content
+    finally:
+        r.close()
