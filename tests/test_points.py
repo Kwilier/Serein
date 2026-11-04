@@ -55,3 +55,36 @@ def test_fine_grid_keeps_every_location(step):
 def test_standard_grid_ids_remain_stable():
     grid = grid_points(REGION, 0.5)
     assert grid.iloc[0]["point_id"] == "G+038.000-0122.000"
+
+
+@pytest.mark.parametrize("field,value", [("lat", 38.5), ("lon", -121.5),
+                                          ("gmt_offset", -7),
+                                          ("reporting_area", "Other area")])
+def test_conflicting_epa_ids_are_rejected(field, value):
+    original = sites().assign(reporting_area="Area")
+    duplicate = original.copy()
+    duplicate[field] = value
+    with pytest.raises(ValueError, match="conflicting.*point_id"):
+        build_points(pd.concat([original, duplicate]), REGION, None)
+
+
+def test_conflicting_purpleair_ids_are_rejected():
+    sensors = pd.DataFrame({"sensor_index": [123, 123], "lat": [38.0, 38.5],
+                            "lon": [-122.0, -122.0]})
+    with pytest.raises(ValueError, match="conflicting.*point_id"):
+        build_points(sites(), REGION, None, sensors)
+
+
+def test_identical_sensor_rows_are_deduplicated():
+    original = sites()
+    sensors = pd.DataFrame({"sensor_index": [123, 123], "lat": [38.5, 38.5],
+                            "lon": [-121.5, -121.5]})
+    points = build_points(pd.concat([original, original]), REGION, None, sensors)
+    assert list(points["point_id"]) == ["EPA1", "PA123"]
+
+
+def test_ids_cannot_collide_between_sensor_kinds():
+    original = sites().assign(site_id="PA123")
+    sensors = pd.DataFrame({"sensor_index": [123], "lat": [38.0], "lon": [-122.0]})
+    with pytest.raises(ValueError, match="conflicting.*point_id"):
+        build_points(original, REGION, None, sensors)

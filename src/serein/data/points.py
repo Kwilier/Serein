@@ -76,7 +76,9 @@ def build_points(sites: pd.DataFrame, region: Region, grid_step: float | None,
         parts.append(p[["point_id", "lat", "lon", "kind", "gmt_offset"]])
     if grid_step is not None:
         parts.append(grid_points(region, grid_step, s))
-    pts = pd.concat(parts, ignore_index=True).drop_duplicates("point_id")
+    pts = pd.concat(parts, ignore_index=True).drop_duplicates()
+    if pts["point_id"].duplicated().any():
+        raise ValueError("conflicting rows for the same point_id in points registry")
     return pts.reset_index(drop=True)
 
 
