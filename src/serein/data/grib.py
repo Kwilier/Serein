@@ -123,6 +123,8 @@ class PointIndex:
         )
         with _LOCK:
             self._load_or_build(cache, lat_grid, lon_grid, pt_lat, pt_lon)
+        # Disk caches store chord lengths scaled by Earth's radius.
+        self.dist_km = 2 * 6371.0 * np.arcsin(np.clip(self.dist_km / (2 * 6371.0), 0, 1))
         self.valid = self.dist_km <= max_km
 
     def _load_or_build(self, cache, lat_grid, lon_grid, pt_lat, pt_lon):

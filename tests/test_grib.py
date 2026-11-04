@@ -56,3 +56,11 @@ def test_point_index_cached_distances_use_current_radius(tmp_path, monkeypatch):
 
     np.testing.assert_array_equal(wide.sample(np.array([10.0])), [10.0])
     assert np.isnan(narrow.sample(np.array([10.0]))).all()
+
+
+def test_point_index_radius_uses_surface_distance_including_cached_lookup(tmp_path, monkeypatch):
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    for _ in range(2):
+        index = grib.PointIndex("test", [0.0], [0.0], [0.0], [90.0], max_km=10000.0)
+        assert index.dist_km[0] == pytest.approx(np.pi * 6371.0 / 2)
+        assert np.isnan(index.sample(np.array([10.0]))).all()
