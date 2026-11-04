@@ -7,6 +7,25 @@ from serein.personal.model import FEATURES, ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
+@pytest.mark.parametrize("days", [1, 2, 3])
+def test_short_synthetic_seasons_support_demo_logs(days):
+    pm = simulate_pm_season(days, seed=3)
+    assert pm.shape == (days,)
+    assert np.isfinite(pm).all()
+    assert (pm >= 0).all()
+    np.testing.assert_array_equal(pm, simulate_pm_season(days, seed=3))
+    kid = SimChild(np.zeros(6), 0.3, 0.9, "typical")
+    log = simulate_log(kid, pm, seed=3)
+    assert len(log) == days
+    assert np.isfinite(log.to_numpy()).all()
+
+
+@pytest.mark.parametrize("days", [0, -1, True, 3.5, np.nan, np.inf])
+def test_synthetic_seasons_reject_invalid_lengths(days):
+    with pytest.raises(ValueError, match="n_days must be a positive integer"):
+        simulate_pm_season(days)
+
+
 @pytest.mark.parametrize("day", [None, pd.NaT, np.nan, 0, True, "2023-07-01",
                                  np.datetime64("2023-07-01"),
                                  pd.Timestamp("2023-07-01T12:00:00Z")])
