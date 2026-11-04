@@ -5,6 +5,76 @@ import pandas as pd
 import pytest
 
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
+from serein.personal.model import design_row
+
+
+def test_loaded_checkins_preserve_optional_confounders(tmp_path):
+    log = to_frame([
+        CheckIn(date(2026, 11, 4), 1, 0, False, 1, False, False),
+        CheckIn(date(2026, 11, 5), 0, 0, False, 2, True, True),
+    ])
+    log["ozone_ppb"] = [80.0, np.nan]
+    log["hot_day"] = [True, False]
+    log["high_pollen"] = [0, 1]
+    pm = {date(2026, 11, day): 10.0 for day in range(2, 6)}
+    expected = np.array([
+        design_row(10, 10, 10, 0.3, 0, 0, ozone_ppb=80, hot_day=1, high_pollen=0),
+        design_row(10, 10, 10, 0.6, 1, 1, ozone_ppb=None, hot_day=0, high_pollen=1),
+    ])
+    path = tmp_path / "context.csv"
+    save_local(log, path)
+    for frame in (log, pd.read_csv(path)):
+        before = frame.copy(deep=True)
+        X, y = model_rows(frame, pm)
+        np.testing.assert_array_equal(X, expected)
+        np.testing.assert_array_equal(y, [1, 0])
+        pd.testing.assert_frame_equal(frame, before)
+
+
+@pytest.mark.parametrize("column,value", [
+    ("ozone_ppb", -1), ("ozone_ppb", np.inf), ("ozone_ppb", "80"),
+    ("ozone_ppb", True), ("hot_day", 2), ("hot_day", np.nan),
+    ("high_pollen", "False"), ("high_pollen", None),
+])
+def test_loaded_checkins_reject_invalid_confounders_before_pm_lookup(column, value):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log[column] = pd.Series([value], dtype=object)
+    with pytest.raises(ValueError, match=column):
+        model_rows(log, {})
+
+
+@pytest.mark.parametrize("column", ["ozone_ppb", "hot_day", "high_pollen"])
+@pytest.mark.parametrize("empty", [False, True])
+def test_loaded_checkins_reject_duplicate_confounder_columns(column, empty):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log[column] = 0
+    log = pd.concat([log, log[[column]]], axis=1)
+    if empty:
+        log = log.iloc[:0]
+    with pytest.raises(ValueError, match="duplicate.*" + column):
+        model_rows(log, {})
+
+
+@pytest.mark.parametrize("column,value", [
+    ("ozone_ppb", np.float32(80)), ("ozone_ppb", None), ("ozone_ppb", pd.NA),
+    ("hot_day", np.int64(1)), ("high_pollen", np.bool_(True)),
+])
+def test_loaded_checkins_accept_individual_optional_confounders(column, value):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    pm = {date(2026, 11, day): 10.0 for day in range(2, 5)}
+    baseline, _ = model_rows(log, pm)
+    log[column] = pd.Series([value], dtype=object)
+    X, y = model_rows(log, pm)
+    np.testing.assert_array_equal(X[:, :6], baseline[:, :6])
+    expected = np.zeros(3)
+    if column == "ozone_ppb" and value is not None and value is not pd.NA:
+        expected[0] = 5
+    elif column == "hot_day":
+        expected[1] = 1
+    elif column == "high_pollen":
+        expected[2] = 1
+    np.testing.assert_array_equal(X[0, 6:], expected)
+    np.testing.assert_array_equal(y, [0])
 
 
 def test_failed_checkin_save_preserves_previous_log(tmp_path, monkeypatch):

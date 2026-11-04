@@ -97,14 +97,17 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
     The last entry for each day wins, matching to_frame when a check-in is edited.
     pm_by_day: {date: µg/m³}. Missing or nonfinite PM on today or either prior day
     excludes the row. Available readings must be nonnegative real numbers.
+    Optional ozone_ppb, hot_day and high_pollen columns supply model confounders.
+    Missing ozone is unknown; absent heat and pollen columns default to zero.
     """
     required = ("day", "cold", "missed_controller", "outdoor", "symptom_day")
     missing = [column for column in required if column not in log.columns]
     if missing:
         raise ValueError(f"check-in table missing required columns: {', '.join(missing)}")
-    duplicates = [column for column in required if (log.columns == column).sum() > 1]
+    optional = ("ozone_ppb", "hot_day", "high_pollen")
+    duplicates = [column for column in required + optional if (log.columns == column).sum() > 1]
     if duplicates:
-        raise ValueError(f"check-in table has duplicate required columns: {', '.join(duplicates)}")
+        raise ValueError(f"check-in table has duplicate model columns: {', '.join(duplicates)}")
     if any(not isinstance(day, date) or isinstance(day, datetime) for day in pm_by_day):
         raise TypeError("PM history keys must be calendar dates")
     X, y = [], []
@@ -121,6 +124,18 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
                 and not isinstance(value, (bool, np.bool_)) and value in allowed
             ).all():
                 raise ValueError(f"check-in {column} answers must be integer categories")
+        for column in ("hot_day", "high_pollen"):
+            if column in log and not log[column].map(
+                lambda value: isinstance(value, (Real, np.bool_))
+                and np.isfinite(value) and value in (0, 1)
+            ).all():
+                raise ValueError(f"check-in {column} answers must be binary")
+        if "ozone_ppb" in log and not log["ozone_ppb"].map(
+            lambda value: value is None or value is pd.NA
+            or (isinstance(value, Real) and not isinstance(value, (bool, np.bool_))
+                and (np.isnan(value) or (np.isfinite(value) and value >= 0)))
+        ).all():
+            raise ValueError("check-in ozone_ppb must be nonnegative finite numbers or missing")
     for r in log.itertuples():
         d = r.day
         pm0 = pm_by_day.get(d)
@@ -134,8 +149,12 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
                 raise ValueError("PM readings must be nonnegative real numbers")
         if any(pd.isna(pm) or not np.isfinite(pm) for pm in (pm0, pm1, pm2)):
             continue
+        ozone = getattr(r, "ozone_ppb", None)
         X.append(design_row(pm0, pm1, pm2, OUTDOOR_FRAC[r.outdoor], int(r.cold),
-                            int(r.missed_controller)))
+                            int(r.missed_controller),
+                            ozone_ppb=ozone if pd.notna(ozone) else None,
+                            hot_day=getattr(r, "hot_day", 0),
+                            high_pollen=getattr(r, "high_pollen", 0)))
         y.append(r.symptom_day)
     if not X:
         return np.zeros((0, len(FEATURES))), np.zeros(0)
