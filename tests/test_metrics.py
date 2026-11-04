@@ -102,3 +102,25 @@ def test_crps_accepts_probability_endpoints_and_tied_quantiles():
         crps_from_quantiles([[2., 2., 2.]], [0., 0.5, 1.], [5.]), [3.],
     )
     np.testing.assert_allclose(crps_from_quantiles([[2.]], [0.5], [5.]), [3.])
+
+
+@pytest.mark.parametrize("n_boot", [0, -1, 1.5, True, np.bool_(False), np.nan, np.inf])
+@pytest.mark.parametrize("n_days", [3, 6])
+def test_bootstrap_rejects_invalid_resampling_counts(n_boot, n_days):
+    with pytest.raises(ValueError, match="n_boot.*positive integer"):
+        bootstrap_rmse_diff(
+            np.zeros(n_days), np.ones(n_days), np.ones(n_days), np.arange(n_days),
+            n_boot=n_boot,
+        )
+
+
+def test_bootstrap_accepts_numpy_count_and_repeats_seeded_day_resampling():
+    dates = np.repeat(np.arange(6), [1, 2, 3, 1, 2, 3])
+    obs = np.arange(dates.size, dtype=float)
+    pred_a = obs + dates
+    pred_b = obs + 2
+    result = bootstrap_rmse_diff(pred_a, pred_b, obs, dates, n_boot=np.int64(50), seed=7)
+    assert result == bootstrap_rmse_diff(pred_a, pred_b, obs, dates, n_boot=50, seed=7)
+    assert result["ci_lo"] <= result["diff"] <= result["ci_hi"]
+    assert 0 <= result["p_a_better"] <= 1
+    assert bootstrap_rmse_diff([1], [2], [1], [0], n_boot=1) == {}

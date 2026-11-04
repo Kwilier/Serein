@@ -89,6 +89,9 @@ def interval_metrics(lo, hi, obs) -> dict:
 def bootstrap_rmse_diff(pred_a, pred_b, obs, dates, n_boot: int = 1000, seed: int = 0) -> dict:
     """95% CI for RMSE(a) - RMSE(b), resampling whole DAYS (errors on one day are
     correlated across sites, so resampling rows would overstate confidence)."""
+    if (isinstance(n_boot, (bool, np.bool_))
+            or not isinstance(n_boot, (int, np.integer)) or n_boot <= 0):
+        raise ValueError("n_boot must be a positive integer")
     pred_a, pred_b, obs, dates = map(np.asarray, (pred_a, pred_b, obs, dates))
     if (obs.ndim != 1 or any(a.shape != obs.shape for a in (pred_a, pred_b, dates))):
         raise ValueError("predictions, observations and dates must have the same one-dimensional shape")
