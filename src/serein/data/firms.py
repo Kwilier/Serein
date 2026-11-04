@@ -61,9 +61,15 @@ def download_range(start: date, end: date, region: Region, nrt: bool = False) ->
                 parts.append(pd.read_parquet(path))
                 continue
             r = get(f"{API}/{_key()}/{src}/{box}/{n}/{d:%Y-%m-%d}", allow_404=True)
-            if r is None or not r.text.strip() or r.text.lower().startswith("invalid"):
+            if r is None:
                 continue
-            df = pd.read_csv(io.StringIO(r.text))
+            try:
+                text = r.text
+            finally:
+                r.close()
+            if not text.strip() or text.lower().startswith("invalid"):
+                continue
+            df = pd.read_csv(io.StringIO(text))
             df["source"] = src
             df.to_parquet(path, index=False)
             parts.append(df)
