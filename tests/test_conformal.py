@@ -90,3 +90,32 @@ def test_apply_preserves_fractional_corrections_for_integer_forecasts():
     np.testing.assert_allclose(upper, [[4.75, 5.75], [5.75, 6.75]])
     np.testing.assert_array_equal(lo, [[2, 4], [3, 5]])
     np.testing.assert_array_equal(hi, [[4, 6], [5, 7]])
+
+@pytest.mark.parametrize("alpha", [-0.1, 1.1, np.nan, np.inf, -np.inf])
+def test_invalid_alpha_preserves_existing_calibration(alpha):
+    model = CQR(alpha=alpha, qhat={(0, -1): 0.75})
+    values = np.zeros((3, 1))
+    with pytest.raises(ValueError, match="alpha"):
+        model.fit(values, values, values, values)
+    assert model.qhat == {(0, -1): 0.75}
+
+
+@pytest.mark.parametrize("bins", [(2.0, 1.0), (1.0, 1.0), (np.nan,),
+                                  (np.inf,), (-np.inf,), ((1.0, 2.0),)])
+def test_invalid_bins_preserve_existing_calibration(bins):
+    model = CQR(bins=bins, qhat={(0, -1): 0.75})
+    values = np.zeros((3, 1))
+    with pytest.raises(ValueError, match="bins"):
+        model.fit(values, values, values, values)
+    assert model.qhat == {(0, -1): 0.75}
+    with pytest.raises(ValueError, match="bins"):
+        model.apply(values, values, values)
+
+
+def test_empty_bins_use_pooled_calibration():
+    model = CQR(bins=())
+    values = np.zeros((3, 1))
+    model.fit(values, values, values, np.full_like(values, 2.0))
+    lower, upper = model.apply(values, values, values)
+    np.testing.assert_array_equal(lower, np.full_like(values, -2.0))
+    np.testing.assert_array_equal(upper, np.full_like(values, 2.0))
