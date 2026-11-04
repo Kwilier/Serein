@@ -77,6 +77,7 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
 
     Cache entries include the exact range, averaging interval and ordered fields.
     Legacy date-only caches are ignored because their request settings are unknown.
+    Overlapping chunk timestamps keep the later response and are sorted in UTC.
     """
     if max_days <= 0 or average_minutes <= 0:
         raise ValueError("max_days and average_minutes must be positive")
@@ -106,7 +107,9 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         time.sleep(pause_s)
     if not parts:
         return pd.DataFrame()
-    df = pd.concat(parts, ignore_index=True)
+    df = (pd.concat(parts, ignore_index=True)
+          .drop_duplicates("time_stamp", keep="last")
+          .sort_values("time_stamp").reset_index(drop=True))
     df["time_utc"] = pd.to_datetime(df["time_stamp"], unit="s")
     df["sensor_index"] = sensor_index
     df.to_parquet(path, index=False)

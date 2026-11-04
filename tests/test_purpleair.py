@@ -62,6 +62,30 @@ def test_history_chunks_naive_times_as_utc(history_client):
     ]
 
 
+def test_history_merges_overlapping_chunks_in_time_order(history_client, monkeypatch):
+    start = datetime(2023, 7, 1, tzinfo=UTC)
+    boundary = start + timedelta(days=1)
+    end = boundary + timedelta(days=1)
+    responses = iter([
+        {"fields": ["time_stamp", "humidity"], "data": [
+            [int(boundary.timestamp()), 30.0], [int(start.timestamp()), 40.0]]},
+        {"fields": ["time_stamp", "humidity"], "data": [
+            [int(end.timestamp()), 50.0], [int(boundary.timestamp()), 35.0]]},
+    ])
+
+    class Response:
+        def json(self):
+            return next(responses)
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    result = purpleair.download_history(1, start, end, max_days=1)
+    assert result["time_stamp"].tolist() == [
+        int(start.timestamp()), int(boundary.timestamp()), int(end.timestamp())]
+    assert result["humidity"].tolist() == [40.0, 35.0, 50.0]
+    pd.testing.assert_frame_equal(
+        result, purpleair.download_history(1, start, end, max_days=1))
+
+
 @pytest.mark.parametrize("kwargs", [
     {"max_days": 0}, {"max_days": -1}, {"average_minutes": 0}, {"average_minutes": -1},
 ])
