@@ -63,6 +63,11 @@ def crps_from_quantiles(qs: np.ndarray, levels, obs: np.ndarray) -> np.ndarray:
     if (qs.ndim != 2 or obs.ndim != 1 or levels.ndim != 1
             or qs.shape != (obs.size, levels.size) or levels.size == 0):
         raise ValueError("quantile shape must be [rows, levels] with one observation per row")
+    if (not np.isfinite(levels).all() or np.any((levels < 0) | (levels > 1))
+            or np.any(np.diff(levels) <= 0)):
+        raise ValueError("quantile levels must be finite, strictly increasing probabilities in [0, 1]")
+    if np.any(np.diff(qs, axis=1) < 0):
+        raise ValueError("quantiles must be nondecreasing along probability levels")
     lv = levels[None, :]
     d = obs[:, None] - qs
     return 2 * np.mean(np.maximum(lv * d, (lv - 1) * d), axis=1)

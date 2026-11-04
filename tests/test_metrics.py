@@ -81,3 +81,24 @@ def test_interval_metrics_keeps_boundaries_and_ignores_missing_rows():
 def test_interval_metrics_without_complete_rows():
     assert interval_metrics(np.array([np.nan]), np.array([10.]), np.array([5.])) == {}
     assert interval_metrics(np.array([]), np.array([]), np.array([])) == {}
+
+
+@pytest.mark.parametrize("levels", [
+    [-0.1, 0.5, 0.9], [0.1, 0.5, 1.1], [0.1, np.nan, 0.9],
+    [0.1, 0.5, np.inf], [0.1, 0.1, 0.9], [0.9, 0.5, 0.1],
+])
+def test_crps_rejects_invalid_probability_levels(levels):
+    with pytest.raises(ValueError, match="levels"):
+        crps_from_quantiles([[1., 2., 3.]], levels, [2.])
+
+
+def test_crps_rejects_crossed_quantiles():
+    with pytest.raises(ValueError, match="quantiles.*decreas"):
+        crps_from_quantiles([[1., 3., 2.]], [0.1, 0.5, 0.9], [2.])
+
+
+def test_crps_accepts_probability_endpoints_and_tied_quantiles():
+    np.testing.assert_allclose(
+        crps_from_quantiles([[2., 2., 2.]], [0., 0.5, 1.], [5.]), [3.],
+    )
+    np.testing.assert_allclose(crps_from_quantiles([[2.]], [0.5], [5.]), [3.])
