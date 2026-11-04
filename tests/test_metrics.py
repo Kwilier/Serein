@@ -1,3 +1,5 @@
+from datetime import date
+
 import numpy as np
 import pytest
 
@@ -145,3 +147,28 @@ def test_bootstrap_ignores_missing_dates_on_unscoreable_rows():
     assert result == bootstrap_rmse_diff(
         np.zeros(5), np.ones(5), np.ones(5), dates[:5], n_boot=10,
     )
+
+
+@pytest.mark.parametrize("missing", [None, np.nan, np.datetime64("NaT", "D")])
+def test_point_metrics_rejects_missing_dates_on_scoreable_rows(missing):
+    dates = np.array([date(2023, 8, 1), missing], dtype=object)
+    with pytest.raises(ValueError, match="missing dates"):
+        point_metrics([10., 40.], [10., 10.], dates)
+
+
+def test_point_metrics_ignores_missing_dates_on_unscoreable_rows():
+    result = point_metrics(
+        [10., 10., np.nan], [11., 11., 40.],
+        [date(2024, 5, 5), date(2024, 5, 6), None],
+    )
+    assert result["n"] == 2
+    assert result["cat_acc"] == 1.
+    assert result["mae"] == 1.
+
+
+def test_point_metrics_uses_each_days_aqi_scale():
+    result = point_metrics(
+        [10., 10.], [13., 13.], [date(2024, 5, 6), date(2024, 5, 5)],
+    )
+    assert result["cat_acc"] == 0.5
+    assert result["n"] == 2

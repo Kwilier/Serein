@@ -42,6 +42,8 @@ def point_metrics(pred, obs, dates=None) -> dict:
     }
     if dates is not None:
         dd = np.asarray(dates)[ok]
+        if pd.isna(dd).any():
+            raise ValueError("scoreable rows must not have missing dates")
         cp = np.concatenate([pm25_to_category(p[dd == d], d) for d in np.unique(dd)])
         co = np.concatenate([pm25_to_category(o[dd == d], d) for d in np.unique(dd)])
     else:
