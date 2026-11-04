@@ -7,6 +7,33 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("offset,start", [(5.5, "2023-08-01 18:15"),
+                                          (-3.5, "2023-08-02 03:15")])
+def test_observations_keep_local_midnight_boundary_with_fractional_offsets(offset, start):
+    hourly = pd.DataFrame({
+        "site_id": "A", "time_utc": pd.date_range(start, periods=2, freq="30min"),
+        "pm25": [10.0, 30.0],
+    })
+    original = hourly.copy(deep=True)
+    result = obs_daily_means(hourly, pd.Series({"A": offset}), min_hours=1)
+    assert result["local_date"].tolist() == [date(2023, 8, 1), date(2023, 8, 2)]
+    assert result["n_hours"].tolist() == [1, 1]
+    assert result["pm25_daily"].tolist() == [10.0, 30.0]
+    pd.testing.assert_frame_equal(hourly, original)
+
+
+def test_observations_weight_local_hours_with_fractional_offset():
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": ["2023-08-01 18:30", "2023-08-01 19:15", "2023-08-01 19:30"],
+        "pm25": [10.0, 30.0, 50.0],
+    })
+    row = obs_daily_means(hourly, pd.Series({"A": 5.5}), min_hours=2).iloc[0]
+    assert row["local_date"] == date(2023, 8, 2)
+    assert row["n_hours"] == 2
+    assert row["pm25_daily"] == pytest.approx(35.0)
+
+
 @pytest.mark.parametrize("missing", ["", "NaT", "nan"])
 def test_forecast_rejects_issue_dates_that_parse_as_missing(missing):
     data = pd.DataFrame({

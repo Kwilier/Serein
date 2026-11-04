@@ -33,7 +33,7 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
                     min_hours: int = MIN_HOURS_DAILY) -> pd.DataFrame:
     """Daily mean PM2.5; require min_hours distinct finite hours per local day.
 
-    Readings within each UTC hour are averaged before daily aggregation so
+    Readings within each local standard-time hour are averaged before daily aggregation so
     each hour has equal weight and counts only once toward completeness.
     """
     if (isinstance(min_hours, (bool, np.bool_))
@@ -41,12 +41,11 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
         raise ValueError("min_hours must be a positive integer")
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
-    h = h.assign(time_utc=pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.floor("h"))
-    if h["time_utc"].isna().any():
-        raise ValueError("time_utc must not contain missing timestamps")
-    h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
-    h = h.groupby(["point_id", "time_utc"], as_index=False)["pm25"].mean()
     h = add_local_date(h, offsets)
+    utc = pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.tz_localize(None)
+    h = h.assign(_local_hour=(utc + pd.to_timedelta(h["_off"], unit="h")).dt.floor("h"))
+    h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
+    h = h.groupby(["point_id", "local_date", "_local_hour"], as_index=False)["pm25"].mean()
     g = h.groupby(["point_id", "local_date"])["pm25"].agg(
         mean="mean", size="count").reset_index()
     g.loc[g["size"] < min_hours, "mean"] = np.nan
