@@ -98,6 +98,12 @@ class ChildModel:
 
     def fit(self, X: np.ndarray, y: np.ndarray, iters: int = 50) -> ChildModel:
         """Laplace posterior given logged days X [n, p], y [n] (0/1)."""
+        X, y = np.asarray(X, dtype=float), np.asarray(y, dtype=float)
+        if (X.ndim != 2 or X.shape[1] != len(FEATURES)
+                or y.ndim != 1 or len(y) != len(X)):
+            raise ValueError("training shapes must be X [n, len(FEATURES)] and y [n]")
+        if np.any(np.isfinite(y) & (y != 0) & (y != 1)):
+            raise ValueError("outcomes must be 0 or 1")
         ok = np.isfinite(y) & np.all(np.isfinite(X), 1)
         X, y = X[ok], y[ok]
         m0, P0 = self.prior.mean, self.prior.precision

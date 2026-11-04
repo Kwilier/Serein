@@ -7,6 +7,39 @@ from serein.personal.model import FEATURES, ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
+@pytest.mark.parametrize("outcomes", [[0, 2], [-1, 1], [0.5, 1]])
+def test_fit_rejects_nonbinary_outcomes_without_changing_model(outcomes):
+    X = np.tile(design_row(20, 10, 10, 0.3, 0, 0), (2, 1))
+    model = ChildModel().fit(X, np.array([0, 1]))
+    mean, cov = model.mean.copy(), model.cov.copy()
+    with pytest.raises(ValueError, match="outcomes must be 0 or 1"):
+        model.fit(X, np.array(outcomes))
+    np.testing.assert_array_equal(model.mean, mean)
+    np.testing.assert_array_equal(model.cov, cov)
+    assert model.n_days == 2
+
+
+@pytest.mark.parametrize("X,y", [
+    (np.zeros(len(FEATURES)), np.array([0])),
+    (np.zeros((2, len(FEATURES) - 1)), np.array([0, 1])),
+    (np.zeros((2, len(FEATURES))), np.array([[0], [1]])),
+    (np.zeros((2, len(FEATURES))), np.array([0])),
+])
+def test_fit_rejects_malformed_training_shapes(X, y):
+    with pytest.raises(ValueError, match="training shapes"):
+        ChildModel().fit(X, y)
+
+
+def test_fit_accepts_lists_and_filters_missing_rows():
+    X = np.tile(design_row(20, 10, 10, 0.3, 0, 0), (4, 1))
+    X[3, 1] = np.inf
+    model = ChildModel().fit(X.tolist(), [False, True, np.nan, 1])
+    expected = ChildModel().fit(X[:2], np.array([0, 1]))
+    assert model.n_days == 2
+    np.testing.assert_allclose(model.mean, expected.mean)
+    np.testing.assert_allclose(model.cov, expected.cov)
+
+
 @pytest.mark.parametrize("settings", [
     {"eval_days": 151}, {"eval_days": 150}, {"eval_days": 0},
     {"eval_days": -1}, {"eval_days": 1.5}, {"eval_days": True},
