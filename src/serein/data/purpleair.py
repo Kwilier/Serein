@@ -280,6 +280,10 @@ def clean_history(df: pd.DataFrame) -> pd.DataFrame:
     keys = pd.DataFrame({"sensor_index": df["sensor_index"], "time_utc": timestamps})
     if keys.duplicated().any():
         raise ValueError("history contains duplicate sensor/timestamp pairs")
+    for column in ("pm2.5_cf_1_a", "pm2.5_cf_1_b", "humidity"):
+        if any(isinstance(value, (bool, np.bool_, complex, np.complexfloating))
+               for value in df[column]):
+            raise ValueError(f"history measurement {column} must contain real numeric values")
     a, b, humidity = (
         df[column].to_numpy(dtype=float, na_value=np.nan)
         for column in ("pm2.5_cf_1_a", "pm2.5_cf_1_b", "humidity")

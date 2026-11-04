@@ -7,6 +7,23 @@ import pytest
 from serein.data import purpleair
 
 
+@pytest.mark.parametrize("column", ["pm2.5_cf_1_a", "pm2.5_cf_1_b", "humidity"])
+@pytest.mark.parametrize("value", [True, np.bool_(False), 20 + 1j, np.complex128(40)])
+def test_clean_history_rejects_boolean_or_complex_measurements(column, value):
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=2, freq="h"),
+        "sensor_index": [1, 1],
+        "pm2.5_cf_1_a": [20.0, 20.0],
+        "pm2.5_cf_1_b": [20.0, 20.0],
+        "humidity": [40.0, 40.0],
+    })
+    frame[column] = pd.Series([20.0, value], dtype=object)
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="history measurement.*real numeric"):
+        purpleair.clean_history(frame)
+    pd.testing.assert_frame_equal(frame, original)
+
+
 @pytest.mark.parametrize("dtype", ["Float64", "Int64", object])
 @pytest.mark.parametrize("column", ["pm2.5_cf_1_a", "pm2.5_cf_1_b", "humidity"])
 def test_clean_history_accepts_nullable_measurements(dtype, column):
