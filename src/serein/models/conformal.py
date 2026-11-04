@@ -42,6 +42,7 @@ class CQR:
     def fit(self, lo, hi, median, y) -> CQR:
         """Arrays [rows, L] in log1p space."""
         L = lo.shape[1]
+        self.qhat.clear()
         for lead in range(L):
             g = self.group(median[:, lead])
             s = np.maximum(lo[:, lead] - y[:, lead], y[:, lead] - hi[:, lead])
