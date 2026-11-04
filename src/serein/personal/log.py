@@ -94,6 +94,12 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
         for column in ("cold", "missed_controller"):
             if not log[column].map(lambda value: isinstance(value, (bool, np.bool_))).all():
                 raise ValueError(f"check-in {column} answers must be boolean")
+        for column, allowed in (("outdoor", OUTDOOR_FRAC), ("symptom_day", (0, 1))):
+            if not log[column].map(
+                lambda value, allowed=allowed: isinstance(value, Integral)
+                and not isinstance(value, (bool, np.bool_)) and value in allowed
+            ).all():
+                raise ValueError(f"check-in {column} answers must be integer categories")
     for r in log.itertuples():
         d = r.day
         pm0 = pm_by_day.get(d)

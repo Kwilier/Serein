@@ -7,6 +7,42 @@ import pytest
 from serein.personal.log import CheckIn, model_rows, save_local, to_frame
 
 
+@pytest.mark.parametrize("value", [True, np.bool_(False), 1.0, -1, 3, "1", None, np.nan])
+@pytest.mark.parametrize("has_pm", [False, True])
+def test_loaded_checkins_reject_invalid_outdoor_categories(value, has_pm):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log["outdoor"] = pd.Series([value], dtype=object)
+    before = log.copy(deep=True)
+    pm = {date(2026, 11, day): 10.0 for day in range(2, 5)} if has_pm else {}
+    with pytest.raises(ValueError, match="outdoor"):
+        model_rows(log, pm)
+    pd.testing.assert_frame_equal(log, before)
+
+
+@pytest.mark.parametrize("value", [True, np.bool_(False), 0.5, 1.0, -1, 2, "0", None, np.nan])
+@pytest.mark.parametrize("has_pm", [False, True])
+def test_loaded_checkins_reject_invalid_symptom_outcomes(value, has_pm):
+    log = to_frame([CheckIn(date(2026, 11, 4), 0, 0, False, 1, False, False)])
+    log["symptom_day"] = pd.Series([value], dtype=object)
+    before = log.copy(deep=True)
+    pm = {date(2026, 11, day): 10.0 for day in range(2, 5)} if has_pm else {}
+    with pytest.raises(ValueError, match="symptom_day"):
+        model_rows(log, pm)
+    pd.testing.assert_frame_equal(log, before)
+
+
+@pytest.mark.parametrize("outdoor", [0, 1, 2])
+@pytest.mark.parametrize("outcome", [0, 1])
+def test_loaded_checkins_accept_integer_categories(outdoor, outcome):
+    log = to_frame([CheckIn(date(2026, 11, 4), outcome, 0, False, outdoor, False, False)])
+    log["outdoor"] = pd.Series([np.int64(outdoor)], dtype=object)
+    log["symptom_day"] = pd.Series([np.int64(outcome)], dtype=object)
+    pm = {date(2026, 11, day): 10.0 for day in range(2, 5)}
+    X, y = model_rows(log, pm)
+    assert X.shape[0] == 1
+    np.testing.assert_array_equal(y, [outcome])
+
+
 @pytest.mark.parametrize("column", ["cold", "missed_controller"])
 @pytest.mark.parametrize("value", [0.5, 2, "False", None, np.nan])
 def test_loaded_checkins_reject_nonboolean_model_answers(column, value):
