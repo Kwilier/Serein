@@ -50,8 +50,11 @@ def grid_points(region: Region, step: float, sites: pd.DataFrame | None = None) 
     lats = np.arange(region.lat_min, region.lat_max + 1e-9, step)
     lons = np.arange(region.lon_min, region.lon_max + 1e-9, step)
     la, lo = np.meshgrid(lats, lons, indexing="ij")
-    df = pd.DataFrame({"lat": la.ravel().round(4), "lon": lo.ravel().round(4)})
-    df["point_id"] = [f"G{a:+08.3f}{b:+09.3f}" for a, b in zip(df["lat"], df["lon"])]
+    precision = max(3, int(np.ceil(-np.log10(step))))
+    df = pd.DataFrame({"lat": la.ravel().round(max(4, precision)),
+                       "lon": lo.ravel().round(max(4, precision))})
+    df["point_id"] = [f"G{a:+0{precision + 5}.{precision}f}{b:+0{precision + 6}.{precision}f}"
+                      for a, b in zip(df["lat"], df["lon"])]
     df["kind"] = "grid"
     df["gmt_offset"] = nearest_site_offset(df["lat"], df["lon"], sites)
     return df

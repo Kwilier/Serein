@@ -37,3 +37,21 @@ def test_grid_contains_region_endpoints_and_preserves_sensors():
 def test_none_spacing_disables_grid():
     points = build_points(sites(), REGION, None)
     assert list(points["point_id"]) == ["EPA1"]
+
+
+@pytest.mark.parametrize("step", [0.0005, 0.00005])
+def test_fine_grid_keeps_every_location(step):
+    region = Region(lat_min=38.0, lat_max=38.001,
+                    lon_min=-122.0, lon_max=-121.999)
+    grid = grid_points(region, step)
+    points = build_points(sites(), region, step)
+    assert grid["point_id"].is_unique
+    assert not grid.duplicated(["lat", "lon"]).any()
+    assert len(points) == len(grid) + 1
+    np.testing.assert_allclose(np.diff(np.sort(grid["lat"].unique())), step)
+    np.testing.assert_allclose(np.diff(np.sort(grid["lon"].unique())), step)
+
+
+def test_standard_grid_ids_remain_stable():
+    grid = grid_points(REGION, 0.5)
+    assert grid.iloc[0]["point_id"] == "G+038.000-0122.000"
