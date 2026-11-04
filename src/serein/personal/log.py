@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import date
+from numbers import Integral
 from pathlib import Path
 
 import numpy as np
@@ -48,7 +49,9 @@ class CheckIn:
         if not all(isinstance(value, (bool, np.bool_)) for value in
                    (self.night_wake, self.cold, self.missed_controller)):
             raise ValueError("check-in yes/no answers must be boolean")
-        if (self.symptoms not in range(4) or self.puffs_bucket not in range(4)
+        if (any(isinstance(value, (bool, np.bool_)) or not isinstance(value, Integral)
+                for value in (self.symptoms, self.puffs_bucket, self.outdoor))
+                or self.symptoms not in range(4) or self.puffs_bucket not in range(4)
                 or self.outdoor not in OUTDOOR_FRAC):
             raise ValueError("check-in answer out of range")
 

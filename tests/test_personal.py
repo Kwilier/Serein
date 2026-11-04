@@ -7,6 +7,34 @@ from serein.personal.model import FEATURES, ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
+@pytest.mark.parametrize("field", ["symptoms", "puffs_bucket", "outdoor"])
+@pytest.mark.parametrize("value", [True, np.bool_(False), 1.0, np.float64(1), 1 + 0j])
+def test_checkin_rejects_noninteger_category_answers(field, value):
+    from datetime import date
+
+    from serein.personal.log import CheckIn
+
+    answers = {"symptoms": 0, "puffs_bucket": 0, "outdoor": 1}
+    answers[field] = value
+    with pytest.raises(ValueError, match="check-in answer out of range"):
+        CheckIn(date(2023, 7, 1), night_wake=False, cold=False,
+                missed_controller=False, **answers)
+
+
+def test_checkin_accepts_numpy_integer_categories():
+    from datetime import date
+
+    from serein.personal.log import CheckIn, to_frame
+
+    entry = CheckIn(date(2023, 7, 1), np.int64(3), np.int32(0), False,
+                    np.int64(2), False, False)
+    assert entry.symptom_day == 1
+    assert entry.needs_doctor_flag
+    frame = to_frame([entry])
+    assert frame.loc[0, "symptoms"] == 3
+    assert frame.loc[0, "outdoor"] == 2
+
+
 @pytest.mark.parametrize("outcomes", [[0, 2], [-1, 1], [0.5, 1]])
 def test_fit_rejects_nonbinary_outcomes_without_changing_model(outcomes):
     X = np.tile(design_row(20, 10, 10, 0.3, 0, 0), (2, 1))
