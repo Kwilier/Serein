@@ -93,3 +93,34 @@ class CQR:
             lo2[:, lead] = lo[:, lead] - q
             hi2[:, lead] = hi[:, lead] + q
         return lo2, hi2
+
+
+def calibrate_quantiles(q_log: np.ndarray, cqr: CQR, levels) -> np.ndarray:
+    """Calibrate log1p PM quantiles while preserving their order and physical support.
+
+    CQR may shrink the outer interval past the inner quantiles. Keep the median,
+    constrain the other quantiles to the calibrated interval, and bound log1p PM
+    below by zero. Missing forecast rows remain missing. Use this same operation
+    in evaluation, exported maps, and transfer scoring.
+    """
+    q = np.asarray(q_log, dtype=float)
+    lv = np.asarray(levels, dtype=float)
+    if (q.ndim != 3 or lv.ndim != 1 or q.shape[-1] != len(lv) or len(lv) < 3
+            or not np.isfinite(lv).all() or (lv <= 0).any() or (lv >= 1).any()
+            or (np.diff(lv) <= 0).any() or np.count_nonzero(lv == 0.5) != 1
+            or not lv[0] < 0.5 < lv[-1]):
+        raise ValueError("quantiles must have [rows, leads, levels] shape and ordered "
+                         "probabilities including the median")
+    if np.isinf(q).any() or (np.diff(q, axis=-1) < 0).any():
+        raise ValueError("forecast quantiles must be ordered and finite or missing")
+    mid = int(np.flatnonzero(lv == 0.5)[0])
+    lo, hi = cqr.apply(q[..., 0], q[..., -1], q[..., mid])
+    median = np.maximum(q[..., mid], 0.0)
+    lower = np.maximum(0.0, np.minimum(lo, median))
+    upper = np.maximum(hi, median)
+    out = q.copy()
+    out[..., :mid] = np.clip(q[..., :mid], lower[..., None], median[..., None])
+    out[..., mid] = median
+    out[..., mid + 1:] = np.clip(q[..., mid + 1:], median[..., None], upper[..., None])
+    out[..., 0], out[..., -1] = lower, upper
+    return out

@@ -10,8 +10,11 @@ from __future__ import annotations
 
 import json
 import pickle
+import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
+from numbers import Integral
 from pathlib import Path
 
 import numpy as np
@@ -26,45 +29,141 @@ from serein.data.points import load_points
 from serein.features.graph import Graph, build_knn_graph
 from serein.features.prepare import leads_of, neighbor_base, to_graph_data
 from serein.features.table import build_table
+from serein.models.conformal import calibrate_quantiles
+from serein.models.ensemble import SmokeCastEnsemble
 from serein.models.gnn import QUANTILES, SmokeCastGNN
 
 AQI_COLORS = ["#00e400", "#ffff00", "#ff7e00", "#ff0000", "#8f3f97", "#7e0023"]
 
 
-def save_artifacts(out_dir: Path, prep, node_ids, n_feat, leads, cfg, cqr, state_dict):
+def _validate_metadata(meta: dict) -> None:
+    """Fail clearly before constructing a network from an incompatible artifact."""
+    if not isinstance(meta, dict):
+        raise TypeError("Model metadata must be an object")
+    version = meta.get("format_version", 1)
+    if isinstance(version, bool) or not isinstance(version, Integral) or version not in (1, 2):
+        raise ValueError(f"Unsupported SmokeCast artifact format: {version}")
+    for key in ("n_feat", "hidden", "layers", "heads", "n_members"):
+        default = 1 if key == "n_members" and version == 1 else None
+        value = meta.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, Integral) or value < 1:
+            raise ValueError(f"Model metadata {key} must be a positive integer")
+    if meta["hidden"] % meta["heads"] or meta["hidden"] < 2:
+        raise ValueError("Model hidden size must be >= 2 and divisible by attention heads")
+    leads = meta.get("leads")
+    if (not isinstance(leads, list) or not leads
+            or any(isinstance(x, bool) or not isinstance(x, Integral) or x < 0 for x in leads)
+            or len(set(leads)) != len(leads)):
+        raise ValueError("Model metadata leads must be distinct nonnegative integers")
+    nodes = meta.get("node_ids")
+    if (not isinstance(nodes, list) or not nodes
+            or any(not isinstance(x, str) or not x.strip() for x in nodes)
+            or len(set(nodes)) != len(nodes)):
+        raise ValueError("Model metadata node_ids must be distinct nonempty strings")
+    if not isinstance(meta.get("use_graph", True), bool):
+        raise TypeError("Model metadata use_graph must be boolean")
+    if version == 2:
+        if meta.get("aggregation") != "mean_log1p_quantiles":
+            raise ValueError("Unsupported ensemble aggregation in model metadata")
+        seeds = meta.get("seeds")
+        if (not isinstance(seeds, list) or len(seeds) != meta["n_members"]
+                or any(s is not None and (isinstance(s, bool) or not isinstance(s, Integral))
+                       for s in seeds)):
+            raise ValueError("Model metadata seeds must match the ensemble member count")
+
+
+def save_artifacts(out_dir: Path, prep, node_ids, n_feat, leads, cfg, cqr, state_dict,
+                   *, seeds=None):
+    """Export every evaluated member and its shared preprocessing/calibration.
+
+    ``state_dict`` also accepts a single mapping for existing callers. All new
+    exports use the versioned bundle, including single-member runs.
+    """
+    states = [state_dict] if isinstance(state_dict, Mapping) else state_dict
+    if not isinstance(states, (list, tuple)) or not states:
+        raise ValueError("Export needs one or more model state dictionaries")
+    if any(not isinstance(state, Mapping) or not state
+           or any(not isinstance(k, str) or not isinstance(v, torch.Tensor)
+                  for k, v in state.items()) for state in states):
+        raise ValueError("Each model state dictionary must contain named tensors")
+    # Copy while this member is still alive; later training must not mutate its weights.
+    states = [{k: v.detach().cpu().clone() for k, v in state.items()} for state in states]
+    if seeds is None:
+        seeds = [int(getattr(cfg, "seed", 0))] if len(states) == 1 else [None] * len(states)
+    meta = {
+        "node_ids": list(node_ids), "n_feat": int(n_feat), "leads": list(leads),
+        "hidden": cfg.hidden, "layers": cfg.layers, "heads": cfg.heads,
+        "use_graph": getattr(cfg, "use_graph", True), "format_version": 2,
+        "n_members": len(states),
+        "seeds": list(seeds), "aggregation": "mean_log1p_quantiles",
+    }
+    _validate_metadata(meta)
     out_dir.mkdir(parents=True, exist_ok=True)
-    torch.save(state_dict, out_dir / "smokecast.pt")
+    torch.save({"format_version": 2, "members": states}, out_dir / "smokecast.pt")
     with open(out_dir / "artifacts.pkl", "wb") as f:
         pickle.dump({"prep": prep, "cqr": cqr}, f)
-    (out_dir / "model.json").write_text(json.dumps({
-        "node_ids": list(node_ids), "n_feat": int(n_feat), "leads": list(leads),
-        "hidden": cfg.hidden, "layers": cfg.layers, "heads": cfg.heads}, indent=1))
+    (out_dir / "model.json").write_text(json.dumps(meta, indent=1))
 
 
 def load_artifacts(run_dir: Path):
     meta = json.loads((run_dir / "model.json").read_text())
+    _validate_metadata(meta)
+    weights = torch.load(run_dir / "smokecast.pt", map_location="cpu", weights_only=True)
+    if meta.get("format_version", 1) == 2:
+        if (not isinstance(weights, dict) or weights.get("format_version") != 2
+                or not isinstance(weights.get("members"), list)
+                or len(weights["members"]) != meta["n_members"]):
+            raise ValueError("Model checkpoint member count or format does not match metadata")
+        states = weights["members"]
+    else:
+        if meta.get("n_members", 1) != 1:
+            raise ValueError("Legacy checkpoint cannot contain multiple ensemble members")
+        warnings.warn("Loading a legacy single-model artifact. Its original ensemble cannot "
+                      "be recovered; rerun the development backtest to export all members.",
+                      UserWarning, stacklevel=2)
+        states = [weights]
     with open(run_dir / "artifacts.pkl", "rb") as f:
         art = pickle.load(f)
     torch.use_deterministic_algorithms(True)
-    model = SmokeCastGNN(meta["n_feat"], len(meta["leads"]), meta["hidden"], meta["layers"],
-                         meta["heads"], drop=0.0)
-    model.load_state_dict(torch.load(run_dir / "smokecast.pt", map_location="cpu"))
+    members = []
+    for state in states:
+        member = SmokeCastGNN(meta["n_feat"], len(meta["leads"]), meta["hidden"], meta["layers"],
+                             meta["heads"], drop=0.0, use_graph=meta.get("use_graph", True))
+        try:
+            member.load_state_dict(state)
+        except (RuntimeError, TypeError) as exc:
+            raise ValueError("Model checkpoint is incompatible with its metadata") from exc
+        members.append(member)
+    model = SmokeCastEnsemble(members)
     model.eval()
+    meta.setdefault("n_members", len(members))
     return model, art["prep"], art["cqr"], meta
 
 
 def sensor_plus_grid_graph(sensor_xy, grid_xy, k: int, max_km: float) -> Graph:
     """Sensors keep their sensor-only kNN graph; each grid point listens to k sensors."""
+    sensor_xy, grid_xy = np.asarray(sensor_xy, float), np.asarray(grid_xy, float)
+    for coordinates in (sensor_xy, grid_xy):
+        if (coordinates.ndim != 2 or coordinates.shape[1] != 2
+                or not np.isfinite(coordinates).all()
+                or (np.abs(coordinates[:, 0]) > 90).any()
+                or (np.abs(coordinates[:, 1]) > 180).any()):
+            raise ValueError("Map graph coordinates must have [points, 2] shape with valid "
+                             "finite latitude and longitude")
     gs = build_knn_graph(sensor_xy[:, 0], sensor_xy[:, 1], k=k, max_km=max_km)
     ns = len(sensor_xy)
+    if not ns or not len(grid_xy) or not k:
+        return gs
 
     def xyz(a):
         la, lo = np.radians(a[:, 0]), np.radians(a[:, 1])
         return np.stack([np.cos(la) * np.cos(lo), np.cos(la) * np.sin(lo), np.sin(la)], 1)
 
-    _, nbr = cKDTree(xyz(sensor_xy)).query(xyz(grid_xy), k=k)
+    # cKDTree emits out-of-bounds sentinel indices when k exceeds the sensor count.
+    neighbors = min(k, ns)
+    _, nbr = cKDTree(xyz(sensor_xy)).query(xyz(grid_xy), k=neighbors)
     src = nbr.reshape(-1)
-    dst = np.repeat(np.arange(len(grid_xy)), k) + ns
+    dst = np.repeat(np.arange(len(grid_xy)), neighbors) + ns
     d = haversine_km(sensor_xy[src, 0], sensor_xy[src, 1], grid_xy[dst - ns, 0], grid_xy[dst - ns, 1])
     keep = d <= max_km
     src, dst, d = src[keep], dst[keep], d[keep]
@@ -77,7 +176,7 @@ def sensor_plus_grid_graph(sensor_xy, grid_xy, k: int, max_km: float) -> Graph:
 @dataclass
 class ForecastInputs:
     """Everything the model sees for one issue day (shared by forecasts and explain)."""
-    model: SmokeCastGNN
+    model: SmokeCastEnsemble
     prep: object
     cqr: object
     meta: dict
@@ -130,8 +229,7 @@ def forecast_day(study: Study, day: date, run_dir: Path, with_grid: bool = True)
     with torch.no_grad():
         q = model(t(X), t(wind), t(base), torch.as_tensor(g.src), torch.as_tensor(g.dst),
                   torch.as_tensor(g.bearing, dtype=torch.float32), torch.as_tensor(g.edge_attr))[0].numpy()
-    lo, hi = cqr.apply(q[..., 0], q[..., -1], q[..., 2])
-    q[..., 0], q[..., -1] = np.minimum(lo, q[..., 2]), np.maximum(hi, q[..., 2])
+    q = calibrate_quantiles(q, cqr, QUANTILES)
     rows = []
     for li, lead in enumerate(leads):
         valid = day + pd.Timedelta(days=lead).to_pytimedelta()

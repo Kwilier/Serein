@@ -38,6 +38,9 @@ if not maps:
 with st.sidebar:
     f = st.selectbox("Forecast issued", maps, format_func=lambda p: p.stem.replace("forecast_", ""))
     fc = pd.read_parquet(f)
+    # Archived forecasts predate physical bounds in the inference pipeline.
+    quantile_columns = ["q05", "q25", "q50", "q75", "q95"]
+    fc[quantile_columns] = fc[quantile_columns].clip(lower=0)
     lead = st.radio("Day", sorted(fc["lead"].unique()),
                     format_func=lambda x: ["today", "tomorrow", "day +2", "day +3"][x],
                     key="forecast_lead")

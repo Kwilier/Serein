@@ -5,8 +5,8 @@
 * hrrr_smoke       NOAA HRRR-Smoke near-surface smoke + the site's clean-air background
                    (HRRR-Smoke only models smoke, so we add typical non-smoke PM2.5)
 * aqm_bc           NOAA's official AQM PM2.5 forecast, bias-corrected (to 72 h)
-* noaa_best        AQM-bc where it exists, else HRRR+bg, else persistence:
-                   the best you could get from NOAA products today
+* noaa_best        legacy key: AQM-bc where it exists, else HRRR+bg, else persistence.
+                   This is an availability fallback, including a non-NOAA last resort.
 """
 
 from __future__ import annotations

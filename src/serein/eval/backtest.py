@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import warnings
 from datetime import datetime
 
 import numpy as np
@@ -32,7 +33,7 @@ from serein.features.graph import build_knn_graph, idw_neighbor_mean
 from serein.features.prepare import Prep, is_sensor_feature, leads_of, neighbor_base, to_graph_data
 from serein.features.table import processed_dir
 from serein.models.baselines import baselines
-from serein.models.conformal import CQR
+from serein.models.conformal import CQR, calibrate_quantiles
 from serein.models.gbm import GBM_QUANTILES, QuantileGBM
 from serein.models.gnn import QUANTILES
 from serein.models.train import TrainConfig, Trainer
@@ -246,8 +247,9 @@ def run_backtest(study: Study, args) -> dict:
         variants.append(("smokecast_nograph", False))
     cqr_store = {}
     for name, use_graph in variants:
-        n_seeds = max(1, int(getattr(args, "seeds", 1))) if use_graph else 1
-        qc_list, qt_list, first = [], [], None
+        # Both variants get the same ensemble size for a fair graph ablation.
+        n_seeds = max(1, int(getattr(args, "seeds", 1)))
+        qc_list, qt_list, states, first_cfg = [], [], [], None
         for k in range(n_seeds):
             cfg = TrainConfig(epochs=args.epochs, seed=args.seed + k, use_graph=use_graph,
                               node_mask_frac=getattr(args, "node_mask", 0.15),
@@ -262,27 +264,24 @@ def run_backtest(study: Study, args) -> dict:
             tr.fit(gds["train"], gds["val"], log=log)
             qc_list.append(_rows_from_graph(tr.predict(gds["conf"]), gds["conf"], len(conf)))
             qt_list.append(_rows_from_graph(tr.predict(gds["test"]), gds["test"], len(test)))
-            first = first or (tr, cfg)
+            if name == "smokecast":
+                states.append({key: value.detach().cpu().clone()
+                               for key, value in tr.model.state_dict().items()})
+            first_cfg = first_cfg or cfg
         # Ensemble = average of each quantile across seeds (log space), then calibrate.
-        # Maps use the first seed's network with the ensemble's calibration.
         q_conf, q_test = np.mean(qc_list, 0), np.mean(qt_list, 0)
-        tr, cfg = first
+        cfg = first_cfg
         y_conf = prep.targets(conf)
         cqr = CQR(alpha=0.10).fit(q_conf[..., 0], q_conf[..., -1], q_conf[..., 2], y_conf)
-        lo, hi = cqr.apply(q_test[..., 0], q_test[..., -1], q_test[..., 2])
-        q_test = q_test.copy()
-        q_test[..., 0] = np.minimum(lo, q_test[..., 2])
-        q_test[..., -1] = np.maximum(hi, q_test[..., 2])
+        q_test = calibrate_quantiles(q_test, cqr, QUANTILES)
         if name == "smokecast":
-            lo_c, hi_c = cqr.apply(q_conf[..., 0], q_conf[..., -1], q_conf[..., 2])
-            q_conf_cal = q_conf.copy()
-            q_conf_cal[..., 0] = np.minimum(lo_c, q_conf[..., 2])
-            q_conf_cal[..., -1] = np.maximum(hi_c, q_conf[..., 2])
+            q_conf_cal = calibrate_quantiles(q_conf, cqr, QUANTILES)
         preds_q[name], levels[name] = q_test, QUANTILES
         cqr_store[name] = {f"{k[0]}_{k[1]}": v for k, v in cqr.qhat.items()}
         if name == "smokecast":
             from serein.models.infer import save_artifacts
-            save_artifacts(out_dir, prep, node_ids, F, leads, cfg, cqr, tr.model.state_dict())
+            save_artifacts(out_dir, prep, node_ids, F, leads, cfg, cqr, states,
+                           seeds=[args.seed + k for k in range(n_seeds)])
 
     # ---- Gradient boosting (no graph learning) ------------------------------
     if holdout.any() and not getattr(args, "no_gbm", False):
@@ -299,8 +298,7 @@ def run_backtest(study: Study, args) -> dict:
         q_cf = gbm.predict(Xcf, len(leads)) + bcf[..., None]
         q_te = gbm.predict(Xte, len(leads)) + bte[..., None]
         cqr = CQR(alpha=0.10).fit(q_cf[..., 0], q_cf[..., -1], q_cf[..., 1], prep.targets(conf))
-        lo, hi = cqr.apply(q_te[..., 0], q_te[..., -1], q_te[..., 1])
-        q_te[..., 0], q_te[..., -1] = np.minimum(lo, q_te[..., 1]), np.maximum(hi, q_te[..., 1])
+        q_te = calibrate_quantiles(q_te, cqr, GBM_QUANTILES)
         preds_q["gbm"], levels["gbm"] = q_te, GBM_QUANTILES
 
     # ---- Score ---------------------------------------------------------------
@@ -428,33 +426,70 @@ def compare_with_epa(study, test, smokecast_pm, leads, pts, warn=None) -> pd.Dat
         return pd.DataFrame()
     # Area names are not unique across states (e.g. "Concord", "Dayton"): keep only
     # areas inside the study region, and match observations on (area, state).
-    fc = fc[study.region.contains(fc["lat"], fc["lon"])]
+    fc = fc[study.region.contains(fc["lat"], fc["lon"])].copy()
     if fc.empty:
         return pd.DataFrame()
     obs_days = sorted({d + pd.Timedelta(days=lead).to_pytimedelta() for d in days for lead in leads})
-    ob = load_observed_area_aqi(obs_days)
+    ob = load_observed_area_aqi(obs_days).copy()
     if ob.empty:
+        return pd.DataFrame()
+    # Use the same text keys for monitor, forecast, and observed-area metadata.
+    # Preserve state as part of every join: area names alone are not identifiers.
+    def key(value):
+        return "" if pd.isna(value) else " ".join(str(value).split()).casefold()
+
+    def normalized_areas(frame):
+        frame = frame.copy()
+        for column in ("reporting_area", "state"):
+            frame[column] = frame[column].map(key)
+        return frame[(frame["reporting_area"] != "") & (frame["state"] != "")]
+
+    fc, ob = normalized_areas(fc), normalized_areas(ob)
+    if "issue_date" in fc:
+        fc = fc.sort_values("issue_date", kind="stable")
+    fc = fc.drop_duplicates(["as_of", "valid_date", "lead", "reporting_area", "state"],
+                            keep="last")
+    ob = ob.drop_duplicates(["valid_date", "reporting_area", "state"], keep="last")
+    if fc.empty or ob.empty:
         return pd.DataFrame()
     ra = pts["reporting_area"].fillna("") if "reporting_area" in pts else None
     if ra is None:
         return pd.DataFrame()
-    site_area = []
+    known_states = fc.groupby("reporting_area")["state"].unique()
+    site_area, skipped = [], 0
     for pid, areas in ra.items():
+        state = key(pts.loc[pid, "state"]) if "state" in pts else ""
         for a in str(areas).split("|"):
-            if a.strip():
-                site_area.append((pid, a.strip()))
-    sa = pd.DataFrame(site_area, columns=["point_id", "reporting_area"])
+            area = key(a)
+            if not area:
+                continue
+            # Older registries omitted state entirely. Infer only an unambiguous
+            # area-to-state mapping, never a state from a monitor's coordinates.
+            area_states = known_states.get(area, [])
+            match_state = state or (area_states[0] if len(area_states) == 1 else "")
+            if not match_state:
+                skipped += 1
+                continue
+            site_area.append((pid, area, match_state))
+    if skipped:
+        warnings.warn(f"Skipped {skipped} EPA monitor/reporting-area mappings without an "
+                      "unambiguous state. Run `serein build-points` to rebuild the points "
+                      "registry with state metadata before comparing these areas.",
+                      UserWarning, stacklevel=2)
+    sa = pd.DataFrame(site_area, columns=["point_id", "reporting_area", "state"]).drop_duplicates()
+    if sa.empty:
+        return pd.DataFrame()
     rows = []
     for li, lead in enumerate(leads):
         t = test[["issue_date", "point_id"]].copy()
         t["pm"] = smokecast_pm[:, li]
         t["warn"] = warn[:, li] if warn is not None else smokecast_pm[:, li] >= 35.5
         t = t.merge(sa, on="point_id")
-        area = t.groupby(["issue_date", "reporting_area"]).agg(
+        area = t.groupby(["issue_date", "reporting_area", "state"]).agg(
             pm=("pm", "max"), warn=("warn", "max")).reset_index()
         f = fc[fc["lead"] == lead][["as_of", "valid_date", "reporting_area", "state", "category_idx"]]
         f = f.rename(columns={"as_of": "issue_date", "category_idx": "epa_cat"})
-        m = area.merge(f, on=["issue_date", "reporting_area"])
+        m = area.merge(f, on=["issue_date", "reporting_area", "state"])
         m = m.merge(ob.rename(columns={"category_idx": "obs_cat"})[
                         ["valid_date", "reporting_area", "state", "obs_cat"]],
                     on=["valid_date", "reporting_area", "state"])
