@@ -45,6 +45,9 @@ class CheckIn:
     missed_controller: bool  # False if took it OR has no controller
 
     def __post_init__(self):
+        if not all(isinstance(value, (bool, np.bool_)) for value in
+                   (self.night_wake, self.cold, self.missed_controller)):
+            raise ValueError("check-in yes/no answers must be boolean")
         if (self.symptoms not in range(4) or self.puffs_bucket not in range(4)
                 or self.outdoor not in OUTDOOR_FRAC):
             raise ValueError("check-in answer out of range")

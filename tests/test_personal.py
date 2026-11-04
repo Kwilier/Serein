@@ -199,6 +199,29 @@ def test_log_keeps_last_submitted_checkin_for_each_day():
         assert row.symptom_day == expected[row.day].symptom_day
 
 
+@pytest.mark.parametrize("field", ["night_wake", "cold", "missed_controller"])
+@pytest.mark.parametrize("value", ["False", "True", None, 0, 1, np.nan])
+def test_checkin_requires_boolean_yes_no_answers(field, value):
+    from datetime import date
+
+    from serein.personal.log import CheckIn
+
+    answers = {"night_wake": False, "cold": False, "missed_controller": False}
+    answers[field] = value
+    with pytest.raises(ValueError, match="check-in yes/no answers must be boolean"):
+        CheckIn(date(2023, 7, 1), 0, 0, outdoor=1, **answers)
+
+
+def test_checkin_accepts_numpy_boolean_answers():
+    from datetime import date
+
+    from serein.personal.log import CheckIn
+
+    entry = CheckIn(date(2023, 7, 1), 0, 0, np.bool_(False), 1,
+                    np.bool_(True), np.bool_(False))
+    assert entry.symptom_day == 0
+
+
 def test_log_joins_with_pm_and_fits():
     from datetime import date, timedelta
 
