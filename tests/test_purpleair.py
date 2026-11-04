@@ -524,3 +524,21 @@ def test_history_reuses_sorted_multirow_cache(history_client):
     pd.testing.assert_frame_equal(first, second)
     assert len(first) == 3
     assert len(history_client) == 3
+
+
+@pytest.mark.parametrize("field", ["time_utc", "sensor_index"])
+@pytest.mark.parametrize("operation", ["estimate", "download"])
+def test_history_rejects_generated_metadata_fields_before_io(
+        history_client, monkeypatch, field, operation):
+    def unexpected_cache_access(source):
+        pytest.fail("reserved fields reached the cache")
+
+    monkeypatch.setattr(purpleair, "raw_dir", unexpected_cache_access)
+    with pytest.raises(ValueError, match="fields.*reserved"):
+        if operation == "estimate":
+            purpleair.estimate_history_points(1, 1, fields=["humidity", field])
+        else:
+            start = datetime(2023, 7, 1)
+            purpleair.download_history(1, start, start + timedelta(days=1),
+                                      fields=["humidity", field])
+    assert not history_client

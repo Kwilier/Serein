@@ -45,6 +45,8 @@ def _validate_history_fields(fields: list[str]) -> None:
         raise ValueError("fields must be a nonempty list of nonblank, comma-free names")
     if len(set(fields)) != len(fields):
         raise ValueError("fields must be unique")
+    if set(fields) & {"time_utc", "sensor_index"}:
+        raise ValueError("fields contain reserved history metadata names: time_utc, sensor_index")
 
 
 @dataclass
