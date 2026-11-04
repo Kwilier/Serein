@@ -45,16 +45,19 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
                   store: str = "west_us") -> pd.DataFrame | None:
     """Sample AQM hourly PM2.5 at points. Output: point_id, valid_utc, step, value.
 
-    Caches without matching point metadata are rebuilt. A failed rebuild raises
-    if an old extraction exists, preserving it without silently reusing it.
+    Caches without matching points or all expected hours are rebuilt. Partial
+    results remain loadable. A failed rebuild raises if an old extraction exists,
+    preserving it without silently reusing it.
     """
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
         points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
     tag = "bc" if bias_corrected else "raw"
+    hours = 48 if d < date(2021, 7, 20) else 72
     out_path = interim_dir(f"{store}/aqm_{tag}") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
     if out_path.exists() and not overwrite:
         cached = pd.read_parquet(out_path)
-        if cached.attrs.get("aqm_points") == point_hash:
+        if (cached.attrs.get("aqm_points") == point_hash
+                and set(range(hours)).issubset(cached["step"])):
             return cached
     blob = None
     for url in candidate_urls(d, cycle, bias_corrected):
