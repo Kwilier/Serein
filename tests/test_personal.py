@@ -1,8 +1,32 @@
 import numpy as np
+import pytest
 
 from serein.personal.action_plan import choose_zone, load_messages, make_plan
 from serein.personal.model import ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
+
+
+@pytest.mark.parametrize("with_entry", [False, True])
+def test_empty_model_rows_preserve_population_prior(with_entry):
+    from datetime import date
+
+    from serein.personal.log import CheckIn, fit_child, model_rows, to_frame
+    from serein.personal.model import FEATURES
+
+    day = date(2023, 7, 1)
+    entries = [CheckIn(day, 1, 0, False, 1, False, False)] if with_entry else []
+    log = to_frame(entries)
+    X, y = model_rows(log, {day: 20.0})
+    assert X.shape == (0, len(FEATURES))
+    assert y.shape == (0,)
+    fitted = ChildModel().fit(X, y)
+    from_log = fit_child(log, {day: 20.0})
+    row = design_row(20, 10, 10, 0.3, 0, 0)
+    prior_risk = ChildModel().risk(row)
+    for model in (fitted, from_log):
+        assert model.n_days == 0
+        for key, value in model.risk(row).items():
+            np.testing.assert_allclose(value, prior_risk[key])
 
 
 def _fit(or10, days, seed=0):

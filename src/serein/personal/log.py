@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from serein.personal.model import ChildModel, design_row
+from serein.personal.model import FEATURES, ChildModel, design_row
 
 OUTDOOR_FRAC = {0: 0.1, 1: 0.3, 2: 0.6}
 
@@ -84,7 +84,7 @@ def model_rows(log: pd.DataFrame, pm_by_day: dict) -> tuple[np.ndarray, np.ndarr
                             int(r.missed_controller)))
         y.append(r.symptom_day)
     if not X:
-        return np.zeros((0, 6)), np.zeros(0)
+        return np.zeros((0, len(FEATURES))), np.zeros(0)
     return np.array(X), np.array(y, float)
 
 
