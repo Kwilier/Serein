@@ -141,3 +141,19 @@ def test_equal_and_missing_bounds_remain_supported():
     lower, upper = model.apply(lo, hi, median)
     np.testing.assert_allclose(lower, [[0.0], [np.nan]])
     np.testing.assert_allclose(upper, [[2.0], [np.nan]])
+
+
+@pytest.mark.parametrize("dtype, lower, upper, observed", [
+    (np.uint8, 10, 20, 5),
+    (np.int8, -100, -90, 100),
+])
+def test_integer_calibration_matches_floating_point(dtype, lower, upper, observed):
+    lo = np.full((60, 1), lower, dtype=dtype)
+    hi = np.full((60, 1), upper, dtype=dtype)
+    median = (lo.astype(float) + hi.astype(float)) / 2
+    y = np.full((60, 1), observed, dtype=dtype)
+    expected = CQR().fit(lo.astype(float), hi.astype(float), median, y.astype(float))
+    actual = CQR().fit(lo, hi, median, y)
+    assert actual.qhat == expected.qhat
+    for result, reference in zip(actual.apply(lo, hi, median), expected.apply(lo, hi, median)):
+        np.testing.assert_allclose(result, reference)

@@ -63,6 +63,8 @@ class CQR:
         _validate_shapes(lo, hi, median, y)
         self._validate_settings()
         _validate_bounds(lo, hi)
+        dtype = np.result_type(lo.dtype, hi.dtype, y.dtype, np.float32)
+        lo, hi, y = (array.astype(dtype, copy=False) for array in (lo, hi, y))
         L = lo.shape[1]
         self.qhat.clear()
         for lead in range(L):
