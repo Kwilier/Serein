@@ -5,6 +5,13 @@ A copy of the key outputs so anyone can read the results **without** re-download
 scored on held-out (odd ISO) weeks of 2023. The 2024-25 test seasons have NOT been
 scored yet (see "Finishing the proof" in the main README).
 
+This is a **historical snapshot**. The November 4 reliability/QC changes and recent
+hourly-observation fixes have not been evaluated on the full development dataset.
+Rebuild the feature tables and regenerate these files before using them to describe
+the revised pipeline's accuracy. Old model artifacts also contain only one member;
+rerun development training to export the full ensemble. The synthetic pipeline test
+checks software consistency, not real-world forecast skill.
+
 | File | What it is |
 |---|---|
 | `dev_report.md` | Full dev backtest report: RMSE by lead, smoke-day RMSE, warning scores, interval coverage, head-to-head with 95% CIs, comparison with EPA forecasts |
@@ -16,7 +23,7 @@ scored yet (see "Finishing the proof" in the main README).
 | `impact.txt` | Plain-English impact numbers (warned smoky days, false alarms) |
 | `airplan_simulation_summary.csv` | AirPlan synthetic-children study (Brier gain by days logged) |
 | `figures/` | Charts and the August 2023 forecast map for the brief, video and website |
-| `logs/abl_*.log` | Input ablations (current code, rerun 2026-11-02 with repeatable training). Summary table in `docs/METHODS.md` |
+| `logs/abl_*.log` | Historical input ablations, rerun 2026-11-02 with repeatable training. Summary table in `docs/METHODS.md` |
 | `logs/peaks_w*.log` | Smoke-day loss-weight experiment (B-13). **Earlier code version** (before the 2026-11-01 code-review fixes) |
 | `logs/sweep_*_reg*.log` | Settings sweep. **Earlier code version** (before smoke weighting and the neighbor-based base), so numbers differ slightly from the final dev run |
 

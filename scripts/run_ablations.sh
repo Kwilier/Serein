@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 # B-10: which inputs matter? Each run hides one input group from SmokeCast (and from
 # its base forecast where relevant). Dev weeks only; 3-seed ensembles.
-set -uo pipefail
+set -euo pipefail
 cd "$(dirname "$0")/.."
 export PYTHONIOENCODING=utf-8
 mkdir -p outputs/logs  # outputs/ is git-ignored, so a fresh clone has no log folder
 L=outputs/logs
-abl () { tag=$1; shift; uv run serein backtest --no-gbm --no-ablation --seeds 3 --tag "abl_$tag" "$@" > "$L/abl_$tag.log" 2>&1; echo "abl $tag done"; }
+abl () {
+    local tag=$1 status
+    shift
+    if uv run serein backtest --no-gbm --no-ablation --seeds 3 --tag "abl_$tag" "$@" > "$L/abl_$tag.log" 2>&1; then
+        echo "abl $tag done"
+    else
+        status=$?
+        echo "abl $tag FAILED (exit $status): see $L/abl_$tag.log" >&2
+        return "$status"
+    fi
+}
 abl full
 abl no_wind    --no-wind
 abl no_hrrr    --drop hrrr_,wind_now_
