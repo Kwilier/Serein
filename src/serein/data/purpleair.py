@@ -127,12 +127,18 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         js = r.json()
         if js.get("data"):
             part = pd.DataFrame(js["data"], columns=js["fields"])
+            if not part.columns.is_unique:
+                raise ValueError("history response fields must be unique")
             if "time_stamp" not in part or not all(
                 isinstance(stamp, Real) and not isinstance(stamp, (bool, np.bool_))
                 and math.isfinite(stamp) and stamp == int(stamp)
                 for stamp in part["time_stamp"]
             ):
                 raise ValueError("history time_stamp must contain finite whole-second timestamps")
+            if not part["time_stamp"].between(
+                params["start_timestamp"], params["end_timestamp"]
+            ).all():
+                raise ValueError("history time_stamp must be within the requested chunk")
             parts.append(part)
         t = t1
         time.sleep(pause_s)

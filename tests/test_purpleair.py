@@ -161,6 +161,38 @@ def test_history_rejects_invalid_response_timestamps(history_client, monkeypatch
     assert not list(tmp_path.rglob("*.parquet"))
 
 
+@pytest.mark.parametrize("offset", [-1, 86401])
+def test_history_rejects_response_outside_chunk(history_client, monkeypatch, tmp_path, offset):
+    start = datetime(2023, 7, 1, tzinfo=UTC)
+
+    class Response:
+        def json(self):
+            return {"fields": ["time_stamp", "humidity"],
+                    "data": [[int(start.timestamp()) + offset, 40.0]]}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    with pytest.raises(ValueError, match="requested chunk"):
+        purpleair.download_history(1, start, start + timedelta(days=2), max_days=1)
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
+@pytest.mark.parametrize("fields,row", [
+    (["time_stamp", "time_stamp"], [1688169600, 1688169600]),
+    (["time_stamp", "humidity", "humidity"], [1688169600, 40.0, 50.0]),
+])
+def test_history_rejects_duplicate_response_fields(
+        history_client, monkeypatch, tmp_path, fields, row):
+    class Response:
+        def json(self):
+            return {"fields": fields, "data": [row]}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="unique"):
+        purpleair.download_history(1, start, start + timedelta(days=1))
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
 def test_history_rejects_missing_response_timestamp(history_client, monkeypatch, tmp_path):
     class Response:
         def json(self):
