@@ -125,8 +125,10 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         }
         r = get(f"{API}/sensors/{sensor_index}/history", headers=_headers(), params=params)
         js = r.json()
-        if js.get("data"):
-            if not isinstance(js["data"], list) or not all(
+        if not isinstance(js, dict) or not isinstance(js.get("data"), list):
+            raise ValueError("history response data must be a list")  # noqa: TRY004
+        if js["data"]:
+            if not all(
                 isinstance(row, list) and len(row) == len(js["fields"])
                 for row in js["data"]
             ):

@@ -248,6 +248,47 @@ def test_history_rejects_nonpositive_intervals(history_client, kwargs):
     assert not history_client
 
 
+@pytest.mark.parametrize("payload", [
+    {}, {"data": None}, {"data": {}}, {"data": ""}, {"data": False},
+    {"data": 0}, [], None,
+])
+def test_history_rejects_malformed_empty_chunk(history_client, monkeypatch, tmp_path, payload):
+    responses = iter([
+        {"fields": ["time_stamp", "humidity"], "data": [[1688169600, 40.0]]},
+        payload,
+    ])
+
+    class Response:
+        def json(self):
+            return next(responses)
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="history response"):
+        purpleair.download_history(1, start, start + timedelta(days=2),
+                                  max_days=1, fields=["humidity"])
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
+def test_history_accepts_empty_chunk_between_populated_chunks(history_client, monkeypatch):
+    responses = iter([
+        {"fields": ["time_stamp", "humidity"], "data": [[1688169600, 40.0]]},
+        {"fields": ["time_stamp", "humidity"], "data": []},
+        {"fields": ["time_stamp", "humidity"], "data": [[1688342400, 50.0]]},
+    ])
+
+    class Response:
+        def json(self):
+            return next(responses)
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    result = purpleair.download_history(1, start, start + timedelta(days=3),
+                                        max_days=1, fields=["humidity"])
+    assert result["time_stamp"].tolist() == [1688169600, 1688342400]
+    assert result["humidity"].tolist() == [40.0, 50.0]
+
+
 @pytest.mark.parametrize("name", ["max_days", "average_minutes"])
 @pytest.mark.parametrize("value", [1.5, np.nan, np.inf, -np.inf, True])
 def test_history_rejects_noninteger_intervals(history_client, name, value):
