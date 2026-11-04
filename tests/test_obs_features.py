@@ -34,3 +34,27 @@ def test_rolling_observations_exclude_nonfinite_readings(invalid):
     assert out.loc["B", "obs_n24"] == 0
     assert np.isnan(out.loc["B", "obs_last24"])
     pd.testing.assert_frame_equal(hourly, original)
+
+
+def test_rolling_observations_weight_hours_equally_without_future_readings():
+    day = date(2023, 8, 1)
+    av = Availability()
+    cutoff = pd.Timestamp(av.last_obs_hour_start(day))
+    hourly = pd.DataFrame({
+        "site_id": "A",
+        "time_utc": [cutoff - pd.Timedelta(hours=2),
+                     cutoff - pd.Timedelta(hours=2) + pd.Timedelta(minutes=30),
+                     cutoff - pd.Timedelta(hours=1), cutoff,
+                     cutoff + pd.Timedelta(minutes=30)],
+        "pm25": [10.0, 30.0, 50.0, 80.0, 1000.0],
+    })
+    original = hourly.copy(deep=True)
+    daily = pd.DataFrame(columns=["local_date", "point_id", "pm25_daily"])
+    points = pd.DataFrame({"point_id": ["A"]})
+    row = _obs_features(hourly, daily, points, [day], av, [0]).iloc[0]
+    assert row["obs_n24"] == 3
+    assert row["obs_last1"] == 80.0
+    for column in ("obs_last3", "obs_last6", "obs_last24"):
+        assert row[column] == pytest.approx(50.0)
+    assert row["obs_max24"] == 80.0
+    pd.testing.assert_frame_equal(hourly, original)

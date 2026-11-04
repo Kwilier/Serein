@@ -50,8 +50,10 @@ def _obs_features(hourly: pd.DataFrame, daily: pd.DataFrame, points: pd.DataFram
     for d in days:
         t = pd.Timestamp(av.last_obs_hour_start(d))
         w24 = wide.loc[t - pd.Timedelta(hours=23): t]
-        w3 = wide.loc[t - pd.Timedelta(hours=2): t]
-        w6 = wide.loc[t - pd.Timedelta(hours=5): t]
+        # Apply the availability cutoff before combining subhourly readings.
+        w24 = w24.groupby(w24.index.floor("h")).mean()
+        w3 = w24.loc[t - pd.Timedelta(hours=2): t]
+        w6 = w24.loc[t - pd.Timedelta(hours=5): t]
 
         def dget(day):
             return dwide.loc[day].to_numpy() if day in dwide.index else np.full(len(ids), np.nan)
