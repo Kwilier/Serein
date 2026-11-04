@@ -108,6 +108,10 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     Overlapping chunk timestamps keep the later response and are sorted in UTC.
     Range boundaries must use whole seconds to avoid API timestamp truncation.
     """
+    if (isinstance(sensor_index, bool) or not isinstance(sensor_index, Integral)
+            or sensor_index <= 0):
+        raise ValueError("sensor_index must be a positive integer")
+    sensor_index = int(sensor_index)
     _validate_history_fields(fields)
     for name, value in (("max_days", max_days), ("average_minutes", average_minutes)):
         if isinstance(value, bool) or not isinstance(value, Integral) or value <= 0:

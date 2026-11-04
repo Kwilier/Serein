@@ -103,6 +103,31 @@ def test_history_normalizes_offsets_and_reuses_equivalent_cache(history_client):
     pd.testing.assert_frame_equal(first, second)
 
 
+@pytest.mark.parametrize("sensor_index", [
+    0, -1, 1.5, 1.0, True, np.bool_(True), None, np.nan, np.inf,
+    "1", "../sensor", "1/history?fields=humidity",
+])
+def test_history_rejects_invalid_sensor_before_io(history_client, monkeypatch, sensor_index):
+    def unexpected_cache_access(source):
+        pytest.fail("invalid sensor reached the cache")
+
+    monkeypatch.setattr(purpleair, "raw_dir", unexpected_cache_access)
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="sensor_index"):
+        purpleair.download_history(sensor_index, start, start + timedelta(days=1))
+    assert not history_client
+
+
+def test_history_numpy_sensor_reuses_integer_cache(history_client):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=1)
+    first = purpleair.download_history(np.int64(123), start, end)
+    second = purpleair.download_history(123, start, end)
+    assert len(history_client) == 1
+    assert first["sensor_index"].tolist() == [123]
+    pd.testing.assert_frame_equal(first, second)
+
+
 def test_history_cache_distinguishes_request_parameters(history_client):
     start = datetime(2023, 7, 1)
     end = start + timedelta(hours=2)
