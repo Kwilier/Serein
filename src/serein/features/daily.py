@@ -69,6 +69,9 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
         raise ValueError("valid_utc must not contain missing timestamps")
     d[value_col] = d[value_col].where(np.isfinite(d[value_col]))
     timestamp_keys = ["issue_date", "point_id", *group_extra, "valid_utc"]
+    for column in timestamp_keys:
+        if d[column].isna().any():
+            raise ValueError(f"{column} must not contain missing values")
     d = d.groupby(timestamp_keys, observed=True, as_index=False)[value_col].mean()
     d = add_local_date(d, offsets, time_col="valid_utc")
     d["lead"] = (pd.to_datetime(d["local_date"]) - pd.to_datetime(d["issue_date"])).dt.days

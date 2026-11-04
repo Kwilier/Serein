@@ -7,6 +7,23 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("column", ["issue_date", "point_id", "var"])
+@pytest.mark.parametrize("missing", [None, np.nan, pd.NA])
+def test_forecast_rejects_missing_group_identifiers(column, missing):
+    data = pd.DataFrame({
+        "issue_date": [date(2023, 8, 1)] * 2,
+        "point_id": ["A", "A"], "var": ["smoke", "smoke"],
+        "valid_utc": ["2023-08-01 08:00", "2023-08-01 09:00"],
+        "value": [10.0, 100.0],
+    })
+    data[column] = data[column].astype(object)
+    data.loc[1, column] = missing
+    original = data.copy(deep=True)
+    with pytest.raises(ValueError, match=f"{column}.*missing"):
+        model_daily(data, pd.Series({"A": -8}), min_count=1, group_extra=("var",))
+    pd.testing.assert_frame_equal(data, original)
+
+
 def test_subhourly_observations_do_not_satisfy_daily_completeness():
     hourly = pd.DataFrame({
         "site_id": "A",
