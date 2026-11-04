@@ -7,6 +7,40 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("missing", ["", "NaT", "nan"])
+def test_forecast_rejects_issue_dates_that_parse_as_missing(missing):
+    data = pd.DataFrame({
+        "issue_date": ["2023-08-01", missing], "point_id": ["A", "A"],
+        "valid_utc": ["2023-08-01 08:00", "2023-08-01 09:00"],
+        "value": [10.0, 100.0],
+    })
+    original = data.copy(deep=True)
+    with pytest.raises(ValueError, match="issue_date.*missing"):
+        model_daily(data, pd.Series({"A": -8}), min_count=1)
+    pd.testing.assert_frame_equal(data, original)
+
+
+def test_forecast_combines_equivalent_issue_date_representations():
+    data = pd.DataFrame({
+        "issue_date": pd.Series([
+            date(2023, 8, 1), "2023-08-01", pd.Timestamp("2023-08-01"),
+        ], dtype=object),
+        "point_id": "A",
+        "valid_utc": ["2023-08-01 08:00", "2023-08-01 08:00", "2023-08-01 09:00"],
+        "value": [10.0, 30.0, 40.0],
+    })
+    original = data.copy(deep=True)
+    result = model_daily(data, pd.Series({"A": -8}), min_count=2)
+    assert len(result) == 1
+    row = result.iloc[0]
+    assert row["issue_date"] == date(2023, 8, 1)
+    assert row["lead"] == 0
+    assert row["size"] == 2
+    assert row["mean"] == pytest.approx(30.0)
+    assert row["max"] == pytest.approx(40.0)
+    pd.testing.assert_frame_equal(data, original)
+
+
 @pytest.mark.parametrize("column", ["issue_date", "point_id", "var"])
 @pytest.mark.parametrize("missing", [None, np.nan, pd.NA])
 def test_forecast_rejects_missing_group_identifiers(column, missing):

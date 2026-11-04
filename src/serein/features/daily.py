@@ -59,11 +59,13 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
 
     lead = local_date - issue_date (days). Size counts distinct finite timestamps.
     Repeated values at a timestamp are averaged within each forecast group first.
+    Issue dates are normalized to calendar dates before grouping.
     """
     if (isinstance(min_count, (bool, np.bool_))
             or not isinstance(min_count, (int, np.integer)) or min_count <= 0):
         raise ValueError("min_count must be a positive integer")
     d = df.copy()
+    d["issue_date"] = pd.to_datetime(d["issue_date"], format="mixed").dt.date
     d["valid_utc"] = pd.to_datetime(d["valid_utc"], utc=True, format="mixed")
     if d["valid_utc"].isna().any():
         raise ValueError("valid_utc must not contain missing timestamps")
