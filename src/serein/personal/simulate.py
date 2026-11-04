@@ -159,6 +159,8 @@ def summarize_study(df: pd.DataFrame) -> pd.DataFrame:
     """Summarize learning curves, requiring a k=0 baseline for every scored child."""
     d = df[df["k"] != "oracle"].copy()
     d["k"] = d["k"].astype(int)
+    if d.duplicated(["child", "k"]).any():
+        raise ValueError("duplicate child-duration rows in study results")
     pop = d[d["k"] == 0].set_index("child")["brier"]
     if not d["child"].isin(pop.index).all():
         raise ValueError("population baseline (k=0) is required for every child")

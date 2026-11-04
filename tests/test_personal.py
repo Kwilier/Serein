@@ -355,6 +355,20 @@ def test_study_summary_requires_population_baseline_for_each_child(missing_child
     pd.testing.assert_frame_equal(incomplete, original)
 
 
+@pytest.mark.parametrize("duration", [0, 2])
+def test_study_summary_rejects_duplicate_child_durations(duration):
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=2, n_days=6, eval_days=2, ks=(0, 2), seed=0)
+    repeated = result[(result["child"] == 0) & (result["k"] == duration)].copy()
+    repeated["brier"] *= 2
+    loaded = pd.concat([result, repeated], ignore_index=True)
+    original = loaded.copy(deep=True)
+    with pytest.raises(ValueError, match="duplicate child-duration"):
+        summarize_study(loaded)
+    pd.testing.assert_frame_equal(loaded, original)
+
+
 def test_log_joins_with_pm_and_fits():
     from datetime import date, timedelta
 
