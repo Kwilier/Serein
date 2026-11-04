@@ -171,3 +171,34 @@ def test_get_raises_last_connection_failure_after_retry_limit(monkeypatch):
     assert error.value is failures[-1]
     assert len(calls) == 3
     assert sleeps == [1, 2]
+
+
+@pytest.mark.parametrize("failure_type", [requests.exceptions.ChunkedEncodingError,
+                                        requests.exceptions.ContentDecodingError])
+def test_get_range_closes_response_when_body_read_fails(monkeypatch, failure_type):
+    failure = failure_type("interrupted response body")
+    events = []
+
+    class InterruptedBody:
+        def stream(self, chunk_size, decode_content):
+            events.append("read")
+            yield b"a"
+            raise failure
+
+        def close(self):
+            events.append("close")
+
+        def release_conn(self):
+            events.append("release")
+
+    response = requests.Response()
+    response.status_code = 206
+    response.headers["Content-Range"] = "bytes 10-12/20"
+    response.raw = InterruptedBody()
+    monkeypatch.setattr(http, "get", lambda *args, **kwargs: response)
+
+    with pytest.raises(failure_type) as error:
+        http.get_range("https://example.test/data", 10, 12)
+
+    assert error.value is failure
+    assert events == ["read", "close", "release"]
