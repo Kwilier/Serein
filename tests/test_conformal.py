@@ -157,3 +157,27 @@ def test_integer_calibration_matches_floating_point(dtype, lower, upper, observe
     assert actual.qhat == expected.qhat
     for result, reference in zip(actual.apply(lo, hi, median), expected.apply(lo, hi, median)):
         np.testing.assert_allclose(result, reference)
+
+
+@pytest.mark.parametrize("missing", [np.nan, np.inf, -np.inf])
+def test_missing_medians_use_pooled_correction(missing):
+    model = CQR(qhat={(0, -1): 1.0, (0, 0): 3.0, (0, 2): 5.0})
+    lo = np.zeros((1, 1))
+    hi = np.ones((1, 1))
+    lower, upper = model.apply(lo, hi, np.array([[missing]]))
+    np.testing.assert_allclose(lower, [[-1.0]])
+    np.testing.assert_allclose(upper, [[2.0]])
+
+
+@pytest.mark.parametrize("missing", [np.nan, np.inf, -np.inf])
+def test_missing_medians_do_not_contaminate_smoke_group(missing):
+    lo = np.zeros((120, 1))
+    hi = np.ones_like(lo)
+    median = np.full_like(lo, 4.0)
+    median[60:] = missing
+    y = np.full_like(lo, 2.0)
+    y[60:] = 11.0
+    model = CQR().fit(lo, hi, median, y)
+    assert model.qhat[(0, -1)] == 10.0
+    assert model.qhat[(0, 2)] == 1.0
+    assert set(model.qhat) == {(0, -1), (0, 2)}

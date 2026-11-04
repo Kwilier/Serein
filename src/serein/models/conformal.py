@@ -72,7 +72,7 @@ class CQR:
             s = np.maximum(lo[:, lead] - y[:, lead], y[:, lead] - hi[:, lead])
             self.qhat[(lead, -1)] = _qhat(s, self.alpha)
             for k in np.unique(g):
-                sk = s[g == k]
+                sk = s[(g == k) & np.isfinite(median[:, lead])]
                 # Fall back to the pooled value when a group is tiny.
                 if np.isfinite(sk).sum() >= 50:
                     self.qhat[(lead, int(k))] = _qhat(sk, self.alpha)
@@ -89,6 +89,7 @@ class CQR:
             pooled = self.qhat.get((lead, -1), 0.0)
             table = np.array([self.qhat.get((lead, k), pooled) for k in range(n_groups)])
             q = table[self.group(median[:, lead])]
+            q = np.where(np.isfinite(median[:, lead]), q, pooled)
             lo2[:, lead] = lo[:, lead] - q
             hi2[:, lead] = hi[:, lead] + q
         return lo2, hi2
