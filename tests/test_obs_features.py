@@ -8,6 +8,21 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+@pytest.mark.parametrize("missing", [None, pd.NaT, ""])
+def test_rolling_observations_reject_missing_timestamps(missing):
+    hourly = pd.DataFrame({
+        "site_id": ["A", "A"],
+        "time_utc": ["2023-08-01T16:00:00", missing],
+        "pm25": [10.0, 100.0],
+    })
+    original = hourly.copy(deep=True)
+    daily = pd.DataFrame(columns=["local_date", "point_id", "pm25_daily"])
+    points = pd.DataFrame({"point_id": ["A"]})
+    with pytest.raises(ValueError, match="missing.*timestamp"):
+        _obs_features(hourly, daily, points, [date(2023, 8, 1)], Availability(), [0])
+    pd.testing.assert_frame_equal(hourly, original)
+
+
 @pytest.mark.parametrize("invalid", [np.inf, -np.inf])
 def test_rolling_observations_exclude_nonfinite_readings(invalid):
     day = date(2023, 8, 1)
