@@ -107,3 +107,19 @@ def test_point_index_accepts_geographic_boundaries_and_reuses_cache(tmp_path, mo
         index = grib.PointIndex("test", lat, lon, lat, lon)
         np.testing.assert_allclose(index.dist_km, 0.0, atol=1e-9)
         np.testing.assert_array_equal(index.sample(np.ones(4)), np.ones(4))
+
+
+@pytest.mark.parametrize("idx,dist", [
+    ([-1], [0.0]), ([2], [0.0]), ([0.5], [0.0]), ([True], [0.0]),
+    ([[0]], [0.0]), ([0, 1], [0.0]), ([0], [[0.0]]),
+    ([0], [-1.0]), ([0], [np.nan]), ([0], [np.inf]),
+    ([0], [2 * 6371.0 + 1]),
+])
+def test_point_index_rejects_invalid_cached_lookup(tmp_path, monkeypatch, idx, dist):
+    monkeypatch.setattr(grib, "interim_dir", lambda name: tmp_path)
+    grib.PointIndex("test", [0.0, 0.0], [0.0, 1.0], [0.0], [0.0])
+    cache, = tmp_path.glob("*.npz")
+    np.savez(cache, idx=idx, dist_km=dist)
+
+    with pytest.raises(ValueError, match="Invalid grid index cache"):
+        grib.PointIndex("test", [0.0, 0.0], [0.0, 1.0], [0.0], [0.0])

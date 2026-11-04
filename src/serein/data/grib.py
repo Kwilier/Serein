@@ -135,6 +135,14 @@ class PointIndex:
         if cache.exists():
             with np.load(cache) as z:
                 self.idx, self.dist_km = z["idx"], z["dist_km"]
+            if (self.idx.shape != (len(pt_lat),)
+                    or self.dist_km.shape != (len(pt_lat),)
+                    or self.idx.dtype.kind not in "iu"
+                    or (self.idx < 0).any() or (self.idx >= len(lat_grid)).any()
+                    or self.dist_km.dtype.kind not in "fiu"
+                    or not np.isfinite(self.dist_km).all()
+                    or (self.dist_km < 0).any() or (self.dist_km > 2 * 6371.0).any()):
+                raise ValueError(f"Invalid grid index cache: {cache}")
         else:
             tree = cKDTree(_unit_xyz(lat_grid, lon_grid))
             d, idx = tree.query(_unit_xyz(pt_lat, pt_lon))
