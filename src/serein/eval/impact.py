@@ -23,6 +23,13 @@ US_CHILDREN_WITH_ASTHMA = 4_804_000  # CDC, 2023 National Health Interview Surve
 def impact(run: Path, lead: int = 1) -> dict:
     e = pd.read_csv(run / "vs_epa_forecast.csv")
     e = e[e["lead"] == lead].set_index("who")
+    for who in ("smokecast", "epa_forecast"):
+        if (e.index == who).sum() != 1:
+            raise ValueError(f"Expected exactly one {who} row for lead {lead}")
+    for field in ("usg_events", "n_area_days"):
+        if e.loc["smokecast", field] != e.loc["epa_forecast", field]:
+            raise ValueError("Impact comparisons require the same reporting-area population "
+                             f"for both forecasts ({field} differs)")
     ev = int(e.loc["smokecast", "usg_events"])
 
     def counts(who):

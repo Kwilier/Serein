@@ -6,6 +6,36 @@ import pytest
 from serein.eval.impact import impact, summary_text
 
 
+@pytest.mark.parametrize("field", ["usg_events", "n_area_days"])
+def test_impact_rejects_mismatched_populations(tmp_path, field):
+    rows = [
+        {"who": who, "lead": 1, "usg_events": 10, "n_area_days": 20,
+         "usg_pod": 0.5, "usg_far": 0.5}
+        for who in ("smokecast", "epa_forecast")
+    ]
+    rows[1][field] -= 1
+    pd.DataFrame(rows).to_csv(tmp_path / "vs_epa_forecast.csv", index=False)
+
+    with pytest.raises(ValueError, match="same.*population"):
+        impact(tmp_path)
+
+
+@pytest.mark.parametrize("models", [[], ["smokecast"], ["epa_forecast"],
+                                   ["smokecast", "smokecast", "epa_forecast"]])
+def test_impact_requires_one_row_per_model_and_lead(tmp_path, models):
+    rows = [
+        {"who": who, "lead": 1, "usg_events": 10, "n_area_days": 20,
+         "usg_pod": 0.5, "usg_far": 0.5}
+        for who in models
+    ]
+    rows.append({"who": "smokecast", "lead": 2, "usg_events": 10,
+                 "n_area_days": 20, "usg_pod": 0.5, "usg_far": 0.5})
+    pd.DataFrame(rows).to_csv(tmp_path / "vs_epa_forecast.csv", index=False)
+
+    with pytest.raises(ValueError, match="exactly one.*lead 1"):
+        impact(tmp_path)
+
+
 @pytest.mark.parametrize("events", [0, 10])
 def test_impact_handles_no_successful_warnings(tmp_path, events):
     pd.DataFrame([
