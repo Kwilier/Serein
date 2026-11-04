@@ -130,7 +130,12 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
     path = raw_dir("purpleair") / "history" / f"{sensor_index}_{digest}.parquet"
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
-        return pd.read_parquet(path)
+        cached = pd.read_parquet(path)
+        required = {"time_stamp", "time_utc", "sensor_index", *fields}
+        missing = required - set(cached.columns)
+        if missing:
+            raise ValueError(f"history cache missing columns: {sorted(missing)}")
+        return cached
     parts, t = [], start
     while t < end:
         t1 = min(t + timedelta(days=max_days), end)

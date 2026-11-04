@@ -128,6 +128,21 @@ def test_history_numpy_sensor_reuses_integer_cache(history_client):
     pd.testing.assert_frame_equal(first, second)
 
 
+@pytest.mark.parametrize("column", [
+    "time_stamp", "time_utc", "sensor_index", *purpleair.HISTORY_FIELDS,
+])
+def test_history_rejects_cache_missing_columns(history_client, tmp_path, column):
+    start = datetime(2023, 7, 1)
+    end = start + timedelta(days=1)
+    frame = purpleair.download_history(1, start, end)
+    path = next(tmp_path.rglob("*.parquet"))
+    frame.drop(columns=column).to_parquet(path, index=False)
+    with pytest.raises(ValueError, match="history cache missing columns"):
+        purpleair.download_history(1, start, end)
+    assert len(history_client) == 1
+    pd.testing.assert_frame_equal(pd.read_parquet(path), frame.drop(columns=column))
+
+
 def test_history_cache_distinguishes_request_parameters(history_client):
     start = datetime(2023, 7, 1)
     end = start + timedelta(hours=2)
