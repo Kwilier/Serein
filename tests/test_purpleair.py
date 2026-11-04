@@ -290,6 +290,31 @@ def test_history_rejects_malformed_empty_chunk(history_client, monkeypatch, tmp_
     assert not list(tmp_path.rglob("*.parquet"))
 
 
+@pytest.mark.parametrize("fields,match", [
+    (["time_stamp", "humidity", "humidity"], "unique"),
+    (["humidity"], "time_stamp"),
+    (["time_stamp"], "missing requested fields"),
+    ([], "time_stamp"),
+])
+def test_history_rejects_incomplete_empty_chunk_fields(
+        history_client, monkeypatch, tmp_path, fields, match):
+    responses = iter([
+        {"fields": ["time_stamp", "humidity"], "data": [[1688169600, 40.0]]},
+        {"fields": fields, "data": []},
+    ])
+
+    class Response:
+        def json(self):
+            return next(responses)
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match=match):
+        purpleair.download_history(1, start, start + timedelta(days=2),
+                                  max_days=1, fields=["humidity"])
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
 def test_history_accepts_empty_chunk_between_populated_chunks(history_client, monkeypatch):
     responses = iter([
         {"fields": ["time_stamp", "humidity"], "data": [[1688169600, 40.0]]},

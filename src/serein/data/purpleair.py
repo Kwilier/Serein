@@ -132,6 +132,10 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
             isinstance(field, str) and field.strip() for field in response_fields
         ):
             raise ValueError("history response fields must be a list of nonblank names")
+        if len(set(response_fields)) != len(response_fields):
+            raise ValueError("history response fields must be unique")
+        if "time_stamp" not in response_fields:
+            raise ValueError("history response must include time_stamp")
         if js["data"]:
             if not all(
                 isinstance(row, list) and len(row) == len(js["fields"])
@@ -139,9 +143,7 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
             ):
                 raise ValueError("history response rows must match the response fields")
             part = pd.DataFrame(js["data"], columns=js["fields"])
-            if not part.columns.is_unique:
-                raise ValueError("history response fields must be unique")
-            if "time_stamp" not in part or not all(
+            if not all(
                 isinstance(stamp, Real) and not isinstance(stamp, (bool, np.bool_))
                 and math.isfinite(stamp) and stamp == int(stamp)
                 for stamp in part["time_stamp"]
@@ -151,9 +153,10 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
                 params["start_timestamp"], params["end_timestamp"]
             ).all():
                 raise ValueError("history time_stamp must be within the requested chunk")
-            missing = set(fields) - set(part.columns)
-            if missing:
-                raise ValueError(f"history response missing requested fields: {sorted(missing)}")
+        missing = set(fields) - set(response_fields)
+        if missing:
+            raise ValueError(f"history response missing requested fields: {sorted(missing)}")
+        if js["data"]:
             parts.append(part)
         t = t1
         time.sleep(pause_s)
