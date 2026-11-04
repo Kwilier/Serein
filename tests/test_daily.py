@@ -7,6 +7,35 @@ import pytest
 from serein.features.daily import model_daily, obs_daily_means
 
 
+@pytest.mark.parametrize("kind", ["observation", "forecast"])
+def test_daily_supports_categorical_stations_with_distinct_offsets(kind):
+    stations = pd.Categorical(["A", "B"], categories=["A", "B", "unused"])
+    offsets = pd.Series({"A": -8, "B": -7, "unused": -6})
+    data = pd.DataFrame({
+        "point_id": stations,
+        "valid_utc": ["2023-08-02 07:30", "2023-08-02 07:30"],
+        "value": [10.0, 20.0],
+        "issue_date": date(2023, 8, 1),
+    })
+    if kind == "observation":
+        data = data.rename(columns={"point_id": "site_id", "valid_utc": "time_utc",
+                                    "value": "pm25"})
+    original = data.copy(deep=True)
+
+    if kind == "observation":
+        out = obs_daily_means(data, offsets, min_hours=1)
+        assert list(out["local_date"]) == [date(2023, 8, 1), date(2023, 8, 2)]
+        assert list(out["pm25_daily"]) == [10.0, 20.0]
+        assert list(out["n_hours"]) == [1, 1]
+    else:
+        out = model_daily(data, offsets, min_count=1)
+        assert list(out["lead"]) == [0, 1]
+        assert list(out["mean"]) == [10.0, 20.0]
+        assert list(out["size"]) == [1, 1]
+    assert list(out["point_id"]) == ["A", "B"]
+    pd.testing.assert_frame_equal(data, original)
+
+
 @pytest.mark.parametrize("group_extra", [(), ("var",)])
 def test_empty_forecast_has_usable_aggregation_schema(group_extra):
     forecast = pd.DataFrame(columns=["issue_date", "point_id", "valid_utc", "pm25", "var"])

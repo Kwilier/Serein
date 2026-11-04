@@ -18,7 +18,7 @@ MIN_HOURS_DAILY = 18  # EPA 75% completeness rule
 def add_local_date(df: pd.DataFrame, offsets: pd.Series, time_col: str = "time_utc",
                    id_col: str = "point_id") -> pd.DataFrame:
     """Apply fixed standard-time offsets; naive timestamps are interpreted as UTC."""
-    off = df[id_col].map(offsets)
+    off = df[id_col].map(offsets).astype(float)
     if not np.isfinite(off).all():
         raise ValueError("Each point must have a finite standard-time offset")
     utc = pd.to_datetime(df[time_col], utc=True, format="mixed").dt.tz_localize(None)
@@ -52,8 +52,9 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
     utc = pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.tz_localize(None)
     h = h.assign(_local_hour=(utc + pd.to_timedelta(h["_off"], unit="h")).dt.floor("h"))
     h["pm25"] = h["pm25"].where(np.isfinite(h["pm25"]))
-    h = h.groupby(["point_id", "local_date", "_local_hour"], as_index=False)["pm25"].mean()
-    g = h.groupby(["point_id", "local_date"])["pm25"].agg(
+    h = h.groupby(["point_id", "local_date", "_local_hour"], observed=True,
+                  as_index=False)["pm25"].mean()
+    g = h.groupby(["point_id", "local_date"], observed=True)["pm25"].agg(
         mean="mean", size="count").reset_index()
     g.loc[g["size"] < min_hours, "mean"] = np.nan
     return g.rename(columns={"mean": "pm25_daily", "size": "n_hours"})
