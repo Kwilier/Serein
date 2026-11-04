@@ -27,8 +27,11 @@ def impact(run: Path, lead: int = 1) -> dict:
 
     def counts(who):
         pod, far = e.loc[who, "usg_pod"], e.loc[who, "usg_far"]
-        hits = pod * ev
-        warnings = hits / (1 - far) if far < 1 else float("nan")
+        hits = pod * ev if ev else 0.0
+        if hits == 0 and pd.isna(far):
+            warnings = 0.0
+        else:
+            warnings = hits / (1 - far) if far < 1 else float("nan")
         return {"warned_days": hits, "missed_days": ev - hits, "false_alarms": warnings - hits}
 
     s, p = counts("smokecast"), counts("epa_forecast")
@@ -37,7 +40,10 @@ def impact(run: Path, lead: int = 1) -> dict:
         "serein": s, "epa": p,
         "extra_warned_days": s["warned_days"] - p["warned_days"],
         "fewer_false_alarms": p["false_alarms"] - s["false_alarms"],
-        "pct_smoky_days_warned": (100 * s["warned_days"] / ev, 100 * p["warned_days"] / ev),
+        "pct_smoky_days_warned": (
+            (100 * s["warned_days"] / ev, 100 * p["warned_days"] / ev)
+            if ev else (float("nan"), float("nan"))
+        ),
     }
 
 
