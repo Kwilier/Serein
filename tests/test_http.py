@@ -70,6 +70,31 @@ def test_get_range_accepts_bounded_response_with_unknown_total(monkeypatch):
     assert http.get_range("https://example.test/data", 10, 12) == b"abc"
 
 
+@pytest.mark.parametrize("header", [
+    "bytes 10-12/0",
+    "bytes 10-12/10",
+    "bytes 10-12/12",
+    "bytes 12-10/20",
+    "bytes */20",
+    "bytes 10-12/-1",
+    "bytes 10-12/20 trailing",
+    "bytes 10-12/20\n",
+    "bytes 10-12/20, bytes 13-15/20",
+    "items 10-12/20",
+])
+def test_get_range_rejects_impossible_or_malformed_content_range(monkeypatch, header):
+    response = _response(206, b"abc", header)
+    closed = []
+    monkeypatch.setattr(response, "close", lambda: closed.append(True))
+    monkeypatch.setattr(http, "get", lambda *args, **kwargs: response)
+
+    with pytest.raises(requests.RequestException) as error:
+        http.get_range("https://example.test/data", 10, 12)
+
+    assert error.value.response is response
+    assert closed == [True]
+
+
 @pytest.mark.parametrize("status, body, header", [
     (206, b"abc", "bytes 10-12/20"),
     (200, b"whole file", None),
