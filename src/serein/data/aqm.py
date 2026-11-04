@@ -39,14 +39,10 @@ def candidate_urls(d: date, cycle: int, bias_corrected: bool) -> list[str]:
     return [f"{BUCKET}/{p}/CS/{d:%Y%m%d}/{cycle:02d}/{name}" for p in ordered]
 
 
-_GRID: tuple | None = None
-
-
 def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
                   bias_corrected: bool = True, overwrite: bool = False,
                   store: str = "west_us") -> pd.DataFrame | None:
     """Sample AQM hourly PM2.5 at points. Output: point_id, valid_utc, step, value."""
-    global _GRID
     tag = "bc" if bias_corrected else "raw"
     out_path = interim_dir(f"{store}/aqm_{tag}") / f"{d:%Y%m%d}_{cycle:02d}z.parquet"
     if out_path.exists() and not overwrite:
@@ -59,13 +55,9 @@ def extract_cycle(d: date, points: pd.DataFrame, cycle: int = 12,
             break
     if blob is None:
         return None
-    fields, grid = decode_messages(blob, with_grid=_GRID is None)
-    if grid is None and fields and len(fields[0].values) != len(_GRID[0]):
-        # Grid changed (AQM version switch): decode again to read the new grid.
-        fields, grid = decode_messages(blob, with_grid=True)
-    if grid is not None:
-        _GRID = grid
-    index = PointIndex(f"aqm{len(_GRID[0])}", _GRID[0], _GRID[1],
+    # AQM version changes can move cells without changing the grid dimensions.
+    fields, grid = decode_messages(blob, with_grid=True)
+    index = PointIndex(f"aqm{len(grid[0])}", grid[0], grid[1],
                        points["lat"].to_numpy(), points["lon"].to_numpy(), max_km=10.0)
     t0 = datetime(d.year, d.month, d.day, cycle)
     rows = []
