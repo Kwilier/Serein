@@ -41,6 +41,13 @@ def obs_daily_means(hourly: pd.DataFrame, offsets: pd.Series,
         raise ValueError("min_hours must be a positive integer")
     h = hourly.rename(columns={"site_id": "point_id"})
     h = h[h["point_id"].isin(offsets.index)]
+    if h.empty:
+        return pd.DataFrame({
+            "point_id": h["point_id"].reset_index(drop=True),
+            "local_date": pd.Series(dtype="object"),
+            "pm25_daily": pd.Series(dtype="float64"),
+            "n_hours": pd.Series(dtype="int64"),
+        })
     h = add_local_date(h, offsets)
     utc = pd.to_datetime(h["time_utc"], utc=True, format="mixed").dt.tz_localize(None)
     h = h.assign(_local_hour=(utc + pd.to_timedelta(h["_off"], unit="h")).dt.floor("h"))

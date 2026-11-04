@@ -404,3 +404,20 @@ def test_daily_rejects_missing_timestamps(kind, missing):
         })
         with pytest.raises(ValueError, match="valid_utc.*missing"):
             model_daily(data, offsets, min_count=1)
+
+
+@pytest.mark.parametrize("filtered", [False, True])
+def test_empty_observation_daily_schema(filtered):
+    hourly = pd.DataFrame(columns=["site_id", "time_utc", "pm25"])
+    if filtered:
+        hourly.loc[0] = ["outside", "2023-08-01", 10.0]
+    original = hourly.copy(deep=True)
+
+    out = obs_daily_means(hourly, pd.Series({"A": -8}))
+
+    assert out.empty
+    assert list(out.columns) == ["point_id", "local_date", "pm25_daily", "n_hours"]
+    assert out["pm25_daily"].dtype == np.dtype("float64")
+    assert out["n_hours"].dtype == np.dtype("int64")
+    assert out.pivot(index="local_date", columns="point_id", values="pm25_daily").empty
+    pd.testing.assert_frame_equal(hourly, original)
