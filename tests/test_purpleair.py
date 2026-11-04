@@ -98,6 +98,36 @@ def test_clean_history_preserves_missing_humidity_median_fallback():
                                purpleair.epa_correction([20.0] * 3, [30.0, 40.0, 50.0]))
 
 
+@pytest.mark.parametrize("invalid", [np.inf, -np.inf, -1.0, 101.0])
+def test_clean_history_uses_only_valid_humidity_for_median_fallback(invalid):
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=4, freq="h"),
+        "sensor_index": [1] * 4,
+        "pm2.5_cf_1_a": [20.0] * 4,
+        "pm2.5_cf_1_b": [20.0] * 4,
+        "humidity": [30.0, invalid, np.nan, 50.0],
+    }, index=[2, 4, 6, 8])
+    original = frame.copy(deep=True)
+    result = purpleair.clean_history(frame)
+    assert result["time_utc"].tolist() == frame["time_utc"].tolist()
+    np.testing.assert_allclose(result["pm25"],
+                               purpleair.epa_correction([20.0] * 4, [30, 40, 40, 50]))
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_clean_history_without_valid_humidity_preserves_humidity_independent_smoke():
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=4, freq="h"),
+        "sensor_index": [1] * 4,
+        "pm2.5_cf_1_a": [20.0, 100.0, 230.0, 300.0],
+        "pm2.5_cf_1_b": [20.0, 100.0, 230.0, 300.0],
+        "humidity": [np.inf, -np.inf, -1.0, 101.0],
+    })
+    result = purpleair.clean_history(frame)
+    assert result["time_utc"].tolist() == [frame.loc[3, "time_utc"]]
+    np.testing.assert_allclose(result["pm25"], purpleair.epa_correction([300.0], [np.nan]))
+
+
 @pytest.fixture
 def history_client(monkeypatch, tmp_path):
     calls = []
