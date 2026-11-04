@@ -433,7 +433,7 @@ remain **In progress** until reviewed and merged. Historical results are unchang
 | Q-2 | Fix: `.gitignore` rule for `data/` also hid the code folder `src/serein/data/` | Done | Aadi-Tiwari | 2026-11-01 |
 | Q-3 | Full code review of `src/`, `app/`, `scripts/`: 14 bugs fixed (site-history leak through `hrrr_pm`, graph self-edges, EPA area matching across states, model-run timing check, fire-data fallback, AQM grid change, AirPlan line search and forecast tails, time zones near borders, partial AirNow days, script log folders, PurpleAir data path), regression tests added, dev suite rerun | Done | Aadi-Tiwari | 2026-11-01 |
 | Q-5 | Fix: `python -m serein.eval.figures` crashed before 3 figures and the peak report; the dev suite now reports figure, map and impact failures instead of hiding them | Done | Aadi-Tiwari | 2026-11-01 |
-| Q-4 | Choose a license (MIT suggested for code) and add `LICENSE` | Open | | |
+| Q-4 | Choose a license and add `LICENSE`: MIT, explained in the README's License section and set in `pyproject.toml` | Done | Aadi-Tiwari | 2026-11-04 |
 | Q-6 | Speed: `CQR.apply`, the GBM neighbor features, `prob_exceed` and the fire features are vectorized (tests check they match the old loops); `download firms` fetches only season days | Done | Aadi-Tiwari | 2026-11-02 |
 | Q-7 ⭐ | Repeatable training: same seed now gives the identical model on the GPU (two runs of the old code moved the day-2 warning rate from 70% to 63%). Dev results rerun on this code. Reports now say "+ uncommitted changes" when the code differs from the commit, and `--final` refuses to run on uncommitted code | Done | Aadi-Tiwari | 2026-11-02 |
 | Q-8 | CPU GitHub checks with app extras and real synthetic training/export/inference test; executable scripts stop on failures | In progress | htvarkali | 2026-11-04 |
@@ -452,4 +452,28 @@ remain **In progress** until reviewed and merged. Historical results are unchang
 
 ## License
 
-To be decided (MIT suggested for code; task Q-4). Data sources keep their own terms.
+Serein's code is released under the [MIT License](LICENSE). Copyright (c) 2026 Team Serein.
+
+### What this means
+
+MIT is a short, permissive open-source license. In plain terms:
+
+- **You can** use, copy, change, merge, publish, share, sublicense and sell copies of the code, for any purpose, including commercial use. No fee and no need to ask us first.
+- **The one condition:** keep the copyright line and the license text (the [LICENSE](LICENSE) file) with any copy or substantial part of the code you share.
+- **No warranty:** the code is provided "as is". If it breaks or gives a wrong answer, the authors are not liable for what happens. You use it at your own risk.
+
+For example, a school could fork Serein, swap in its own region and run it for its families. That is allowed, as long as the fork keeps `LICENSE` with the original copyright line.
+
+### What it covers
+
+The license covers everything in this repo that the team wrote: the Python code in `src/`, `app/`, `scripts/` and `tests/`, the docs, the project website in `website/`, and the synthetic data generators.
+
+### What it does not cover
+
+- **Data sources.** Downloaded data (EPA AirNow, NOAA HRRR-Smoke and HMS, NASA FIRMS, PurpleAir and the others under [Data sources](#data-sources-all-free-all-checked-on-2026-11-01)) stays under each provider's own terms. The MIT License does not relicense it. Check those terms before you redistribute any downloaded data or anything built from it, and give the credit each provider asks for.
+- **Health use.** The license allows reuse of the code. It does not make Serein a medical device or medical advice; see [Safety and ethics](#safety-and-ethics-short-version). Anyone who deploys a fork for real families is responsible for its safety, clinical review and translations.
+- **Names.** It does not grant rights to the Serein name or to the team members' names.
+
+### Contributing
+
+By opening a pull request, you agree that your contribution is released under the same MIT License.
