@@ -9,6 +9,19 @@ from serein.data.availability import Availability
 from serein.features.table import _obs_features
 
 
+def test_build_table_rejects_duplicate_days_before_loading_data(monkeypatch):
+    from serein.features.table import build_table
+
+    def unexpected_load(*args, **kwargs):
+        pytest.fail("duplicate date requests must not load cached observations")
+
+    monkeypatch.setattr("serein.features.table.airnow.load_hourly", unexpected_load)
+    day = date(2023, 8, 1)
+    with pytest.raises(ValueError, match="duplicate issue dates"):
+        build_table(SimpleNamespace(raw={}, leads=[0, 1]), [day, day],
+                    pd.DataFrame({"point_id": ["A"], "gmt_offset": [-8]}))
+
+
 def test_build_table_rejects_empty_days_before_loading_data(monkeypatch):
     from serein.features.table import build_table
 

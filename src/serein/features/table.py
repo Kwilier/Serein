@@ -140,6 +140,8 @@ def build_table(study: Study, days: list[date], points: pd.DataFrame,
                 use_firms: bool = True, progress: bool = True) -> pd.DataFrame:
     if not days:
         raise ValueError("feature table requires at least one issue date")
+    if len(set(days)) != len(days):
+        raise ValueError("feature table contains duplicate issue dates")
     av = Availability.from_study(study.raw)
     leads = study.leads
     offsets = points.set_index("point_id")["gmt_offset"]
