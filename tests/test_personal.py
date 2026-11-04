@@ -6,6 +6,16 @@ from serein.personal.model import ChildModel, design_row
 from serein.personal.simulate import SimChild, simulate_log, simulate_pm_season
 
 
+@pytest.mark.parametrize("pm", [[10.0], [10.0, 20.0], [10.0, 20.0, 40.0, 80.0]])
+def test_simulated_logs_use_past_exposure_with_initial_value_padding(pm):
+    kid = SimChild(np.zeros(6), 0.3, 0.9, "test")
+    log = simulate_log(kid, np.array(pm), seed=0)
+    assert len(log) == len(pm)
+    np.testing.assert_array_equal(log["pm"], pm)
+    np.testing.assert_array_equal(log["lag1"], [pm[max(0, i - 1)] for i in range(len(pm))])
+    np.testing.assert_array_equal(log["lag2"], [pm[max(0, i - 2)] for i in range(len(pm))])
+
+
 @pytest.mark.parametrize("with_entry", [False, True])
 def test_empty_model_rows_preserve_population_prior(with_entry):
     from datetime import date
