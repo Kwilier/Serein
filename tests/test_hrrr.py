@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import Mock
 
 import numpy as np
 import pandas as pd
@@ -6,6 +7,43 @@ import pytest
 
 from serein.data import grib, hrrr
 from serein.data.grib import GribField
+
+
+@pytest.mark.parametrize("failure", [None, "read", "parse", "range"])
+def test_fetch_fields_closes_index_response(monkeypatch, failure):
+    error = RuntimeError("index read failed")
+
+    class Response:
+        close = Mock()
+
+        @property
+        def text(self):
+            if failure == "read":
+                raise error
+            return "invalid" if failure == "parse" else (
+                "1:0:d=2023080112:MASSDEN:8 m above ground:anl:\n"
+                "2:10:d=2023080112:TMP:2 m above ground:anl:\n")
+
+    response = Response()
+    monkeypatch.setattr(hrrr, "get", lambda *args, **kwargs: response)
+
+    def fetch_range(url, start, end):
+        response.close.assert_called_once_with()
+        assert (start, end) == (0, 9)
+        if failure == "range":
+            raise error
+        return b"smoke"
+
+    monkeypatch.setattr(hrrr, "get_range", fetch_range)
+    if failure:
+        with pytest.raises((RuntimeError, IndexError, ValueError)) as caught:
+            hrrr._fetch_fields(date(2023, 8, 1), 12, 0, [hrrr.SMOKE])
+        if failure != "parse":
+            assert caught.value is error
+    else:
+        assert hrrr._fetch_fields(date(2023, 8, 1), 12, 0, [hrrr.SMOKE]) == [
+            (hrrr.SMOKE, b"smoke")]
+    response.close.assert_called_once_with()
 
 
 @pytest.mark.parametrize("missing", [np.nan, np.inf, -np.inf])

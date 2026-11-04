@@ -81,7 +81,10 @@ def _fetch_fields(d: date, cycle: int, fhr: int, wanted: list[str]):
     r = get(url + ".idx", allow_404=True)
     if r is None:
         return None
-    entries = parse_idx(r.text)
+    try:
+        entries = parse_idx(r.text)
+    finally:
+        r.close()
     blobs = []
     for start, end, name in entries:
         if name in wanted:
