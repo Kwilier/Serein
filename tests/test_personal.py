@@ -195,6 +195,20 @@ def test_study_summary_rejects_out_of_range_results(column, value):
         summarize_study(loaded)
 
 
+@pytest.mark.parametrize("personal_brier", [0.0, 0.2])
+def test_study_summary_rejects_zero_population_brier(personal_brier):
+    from serein.personal.simulate import run_study, summarize_study
+
+    result = run_study(n_children=2, n_days=6, eval_days=2, ks=(0, 2))
+    child = result["child"] == 0
+    result.loc[child & (result["k"] == 0), "brier"] = 0.0
+    result.loc[child & (result["k"] == 2), "brier"] = personal_brier
+    before = result.copy(deep=True)
+    with pytest.raises(ValueError, match="population baseline Brier.*positive"):
+        summarize_study(result)
+    pd.testing.assert_frame_equal(result, before)
+
+
 def test_study_summary_accepts_numeric_objects_and_brier_endpoints():
     from serein.personal.simulate import run_study, summarize_study
 

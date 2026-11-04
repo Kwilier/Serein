@@ -156,7 +156,7 @@ def run_study(n_children: int = 300, n_days: int = 150, eval_days: int = 50,
 
 
 def summarize_study(df: pd.DataFrame) -> pd.DataFrame:
-    """Summarize learning curves, requiring a k=0 baseline for every scored child."""
+    """Summarize learning curves with a positive k=0 Brier baseline for each child."""
     d = df[df["k"] != "oracle"].copy()
     for column in ("child", "kind"):
         if d[column].isna().any():
@@ -190,6 +190,8 @@ def summarize_study(df: pd.DataFrame) -> pd.DataFrame:
     pop = d[d["k"] == 0].set_index("child")["brier"]
     if not d["child"].isin(pop.index).all():
         raise ValueError("population baseline (k=0) is required for every child")
+    if (pop <= 0).any():
+        raise ValueError("population baseline Brier scores must be positive for relative gains")
     d["brier_gain_vs_population"] = 1 - d["brier"] / d["child"].map(pop)
     d["or_covered"] = (d["true_or"] >= d["or_lo"]) & (d["true_or"] <= d["or_hi"])
     d["or_abs_err"] = np.abs(np.log(d["est_or"]) - np.log(d["true_or"]))
