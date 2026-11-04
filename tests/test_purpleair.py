@@ -7,6 +7,24 @@ import pytest
 from serein.data import purpleair
 
 
+@pytest.mark.parametrize("column", ["sensor_index", "time_utc", "pm2.5_cf_1_a",
+                                    "pm2.5_cf_1_b", "humidity"])
+@pytest.mark.parametrize("problem", ["missing", "duplicate"])
+def test_clean_history_rejects_ambiguous_schema_without_mutating_input(column, problem):
+    frame = pd.DataFrame({
+        "sensor_index": [1], "time_utc": ["2023-07-01"],
+        "pm2.5_cf_1_a": [10.0], "pm2.5_cf_1_b": [11.0], "humidity": [40.0],
+    })
+    if problem == "missing":
+        frame = frame.drop(columns=column)
+    else:
+        frame = pd.concat([frame, frame[[column]]], axis=1)
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match=f"history.*{problem}.*{column}"):
+        purpleair.clean_history(frame)
+    pd.testing.assert_frame_equal(frame, original)
+
+
 @pytest.mark.parametrize("column", ["pm2.5_cf_1_a", "pm2.5_cf_1_b", "humidity"])
 @pytest.mark.parametrize("value", ["missing", "", "20 ug/m3", [20], {"value": 20}])
 def test_clean_history_names_invalid_measurement_column(column, value):

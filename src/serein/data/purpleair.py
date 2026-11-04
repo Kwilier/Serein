@@ -267,6 +267,13 @@ def epa_correction(pa_cf1, rh):
 
 def clean_history(df: pd.DataFrame) -> pd.DataFrame:
     """A/B QC + finite EPA corrections -> time_utc, sensor_index, pm25."""
+    required = {"sensor_index", "time_utc", "pm2.5_cf_1_a", "pm2.5_cf_1_b", "humidity"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"history missing required columns: {sorted(missing)}")
+    duplicates = required & set(df.columns[df.columns.duplicated()])
+    if duplicates:
+        raise ValueError(f"history duplicate required columns: {sorted(duplicates)}")
     if df["sensor_index"].isna().any():
         raise ValueError("history sensor_index must not contain missing identifiers")
     if any(isinstance(sensor, bool) or not isinstance(sensor, Integral) or sensor <= 0
