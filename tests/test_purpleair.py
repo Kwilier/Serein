@@ -205,6 +205,23 @@ def test_history_rejects_missing_response_timestamp(history_client, monkeypatch,
     assert not list(tmp_path.rglob("*.parquet"))
 
 
+@pytest.mark.parametrize("rows", [
+    [[1688169600]],
+    [[1688169600, 40.0], [1688173200]],
+    [{"time_stamp": 1688169600, "humidity": 40.0}],
+])
+def test_history_rejects_malformed_response_rows(history_client, monkeypatch, tmp_path, rows):
+    class Response:
+        def json(self):
+            return {"fields": ["time_stamp", "humidity"], "data": rows}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="response rows"):
+        purpleair.download_history(1, start, start + timedelta(days=1))
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
 @pytest.mark.parametrize("kwargs", [
     {"max_days": 0}, {"max_days": -1}, {"average_minutes": 0}, {"average_minutes": -1},
 ])

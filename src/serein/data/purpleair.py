@@ -126,6 +126,11 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
         r = get(f"{API}/sensors/{sensor_index}/history", headers=_headers(), params=params)
         js = r.json()
         if js.get("data"):
+            if not isinstance(js["data"], list) or not all(
+                isinstance(row, list) and len(row) == len(js["fields"])
+                for row in js["data"]
+            ):
+                raise ValueError("history response rows must match the response fields")
             part = pd.DataFrame(js["data"], columns=js["fields"])
             if not part.columns.is_unique:
                 raise ValueError("history response fields must be unique")
