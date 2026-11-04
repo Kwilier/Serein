@@ -38,7 +38,8 @@ def point_metrics(pred, obs, dates=None) -> dict:
         "rmse": float(np.sqrt(np.mean(err ** 2))),
         "mae": float(np.mean(np.abs(err))),
         "bias": float(np.mean(err)),
-        "r": float(np.corrcoef(p, o)[0, 1]) if len(o) > 2 and np.std(p) > 0 else np.nan,
+        "r": (float(np.corrcoef(p, o)[0, 1])
+              if len(o) > 2 and np.std(p) > 0 and np.std(o) > 0 else np.nan),
     }
     if dates is not None:
         dd = np.asarray(dates)[ok]

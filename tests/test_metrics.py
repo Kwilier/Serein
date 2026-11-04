@@ -1,3 +1,4 @@
+import warnings
 from datetime import date
 
 import numpy as np
@@ -9,6 +10,21 @@ from serein.eval.metrics import (
     interval_metrics,
     point_metrics,
 )
+
+
+def test_point_metrics_constant_observations_have_undefined_correlation():
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        result = point_metrics([1., 2., 3.], [2., 2., 2.])
+    assert np.isnan(result["r"])
+    assert result["rmse"] == pytest.approx(np.sqrt(2 / 3))
+    assert result["mae"] == pytest.approx(2 / 3)
+    assert result["bias"] == 0.
+    assert result["cat_acc"] == 1.
+
+
+def test_point_metrics_preserves_defined_correlation():
+    assert point_metrics([1., 2., 3.], [3., 2., 1.])["r"] == pytest.approx(-1.)
 
 
 @pytest.mark.parametrize("pred,obs", [
