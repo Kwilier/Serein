@@ -87,6 +87,23 @@ def test_forecast_rejects_missing_group_identifiers(column, missing):
     pd.testing.assert_frame_equal(data, original)
 
 
+def test_forecast_keeps_distinct_issue_calendar_dates_at_same_instant():
+    data = pd.DataFrame({
+        "issue_date": ["2023-08-01T23:00:00-07:00", "2023-08-02T08:00:00+02:00"],
+        "point_id": "A",
+        "valid_utc": "2023-08-02T12:00:00Z",
+        "value": [10.0, 30.0],
+    })
+    original = data.copy(deep=True)
+    result = model_daily(data, pd.Series({"A": -8}), min_count=1)
+    assert result["issue_date"].tolist() == [date(2023, 8, 1), date(2023, 8, 2)]
+    assert result["lead"].tolist() == [1, 0]
+    assert result["size"].tolist() == [1, 1]
+    assert result["mean"].tolist() == [10.0, 30.0]
+    assert result["max"].tolist() == [10.0, 30.0]
+    pd.testing.assert_frame_equal(data, original)
+
+
 def test_subhourly_observations_do_not_satisfy_daily_completeness():
     hourly = pd.DataFrame({
         "site_id": "A",

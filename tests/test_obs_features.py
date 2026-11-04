@@ -333,6 +333,21 @@ def test_rolling_observations_reject_duplicate_daily_targets(values):
     pd.testing.assert_frame_equal(daily, original)
 
 
+def test_daily_targets_reject_duplicate_calendar_dates_across_timezones():
+    day = date(2023, 8, 1)
+    hourly = pd.DataFrame(columns=["site_id", "time_utc", "pm25"])
+    daily = pd.DataFrame({
+        "point_id": ["A", "A"],
+        "local_date": ["2023-08-01T01:00:00+02:00", "2023-08-01T23:00:00-07:00"],
+        "pm25_daily": [10.0, 30.0],
+    })
+    original = daily.copy(deep=True)
+    with pytest.raises(ValueError, match="duplicate point/date pairs"):
+        _obs_features(hourly, daily, pd.DataFrame({"point_id": ["A"]}),
+                      [day], Availability(), [0])
+    pd.testing.assert_frame_equal(daily, original)
+
+
 @pytest.mark.parametrize("invalid", [np.inf, -np.inf])
 def test_daily_targets_exclude_nonfinite_readings(invalid):
     day = date(2023, 8, 1)
