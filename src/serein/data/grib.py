@@ -16,6 +16,17 @@ from serein.config import interim_dir
 _LOCK = threading.RLock()
 
 
+def validate_point_coordinates(lat, lon):
+    """Require nonempty geographic coordinates before forecast downloads."""
+    lat = np.asarray(lat, dtype=float)
+    lon = np.asarray(lon, dtype=float)
+    if (lat.ndim != 1 or lon.shape != lat.shape or not lat.size
+            or not np.isfinite(lat).all() or not np.isfinite(lon).all()
+            or (np.abs(lat) > 90).any() or (np.abs(lon) > 180).any()):
+        raise ValueError("Point coordinates must be nonempty, finite latitudes in [-90, 90] "
+                         "and longitudes in [-180, 180]")
+
+
 def _unit_xyz(lat, lon):
     lat = np.radians(np.asarray(lat, dtype=float))
     lon = np.radians(np.asarray(lon, dtype=float))
