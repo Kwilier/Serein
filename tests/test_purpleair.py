@@ -118,6 +118,22 @@ def test_history_rejects_invalid_sensor_before_io(history_client, monkeypatch, s
     assert not history_client
 
 
+@pytest.mark.parametrize("field", ["time_utc", "sensor_index"])
+@pytest.mark.parametrize("empty", [False, True])
+def test_history_rejects_response_metadata_collisions(
+        history_client, monkeypatch, tmp_path, field, empty):
+    class Response:
+        def json(self):
+            return {"fields": ["time_stamp", "humidity", field],
+                    "data": [] if empty else [[1688169600, 40.0, 999]]}
+
+    monkeypatch.setattr(purpleair, "get", lambda *args, **kwargs: Response())
+    start = datetime(2023, 7, 1)
+    with pytest.raises(ValueError, match="history response fields.*reserved"):
+        purpleair.download_history(1, start, start + timedelta(days=1), fields=["humidity"])
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
 def test_history_numpy_sensor_reuses_integer_cache(history_client):
     start = datetime(2023, 7, 1)
     end = start + timedelta(days=1)

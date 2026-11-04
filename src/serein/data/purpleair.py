@@ -177,6 +177,8 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
             raise ValueError("history response fields must be a list of nonblank names")
         if len(set(response_fields)) != len(response_fields):
             raise ValueError("history response fields must be unique")
+        if set(response_fields) & {"time_utc", "sensor_index"}:
+            raise ValueError("history response fields contain reserved metadata names")
         if "time_stamp" not in response_fields:
             raise ValueError("history response must include time_stamp")
         if js["data"]:
