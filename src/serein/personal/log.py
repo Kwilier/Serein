@@ -22,7 +22,7 @@ use, night waking) and should be confirmed with a clinician (TODO C-8).
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import date, datetime
 from numbers import Integral
 from pathlib import Path
@@ -68,8 +68,9 @@ class CheckIn:
 
 
 def to_frame(entries: list[CheckIn]) -> pd.DataFrame:
-    df = pd.DataFrame([asdict(e) for e in entries])
+    df = pd.DataFrame([asdict(e) for e in entries], columns=[f.name for f in fields(CheckIn)])
     if df.empty:
+        df["symptom_day"] = pd.Series(dtype=int)
         return df
     df["day"] = pd.to_datetime(df["day"]).dt.date
     df["symptom_day"] = [e.symptom_day for e in entries]
