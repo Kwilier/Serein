@@ -6,6 +6,21 @@ import pytest
 from serein.data import purpleair
 
 
+@pytest.mark.parametrize("a,b", [(-1, -1), (-100, 10), (1, -1), (-1, 1)])
+def test_clean_history_rejects_negative_channel_readings(a, b):
+    frame = pd.DataFrame({
+        "time_utc": pd.date_range("2023-07-01", periods=2, freq="h"),
+        "sensor_index": [1, 1],
+        "pm2.5_cf_1_a": [a, 0],
+        "pm2.5_cf_1_b": [b, 0],
+        "humidity": [40.0, 40.0],
+    })
+    result = purpleair.clean_history(frame)
+    assert result["time_utc"].tolist() == [frame.loc[1, "time_utc"]]
+    assert result["pm25"].notna().all()
+    assert (result["pm25"] >= 0).all()
+
+
 @pytest.fixture
 def history_client(monkeypatch, tmp_path):
     calls = []

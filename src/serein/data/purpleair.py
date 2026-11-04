@@ -118,7 +118,7 @@ def download_history(sensor_index: int, start: datetime, end: datetime,
 
 # --------------------------------------------------------------------- QC + fix
 def qc_ab(a, b, abs_tol: float = 5.0, rel_tol: float = 0.7):
-    """Keep hours where channels A and B agree (within 5 µg/m³ OR within 70%).
+    """Keep finite, nonnegative channels that agree (within 5 µg/m³ OR 70%).
 
     Returns (mean of A and B, keep mask). Mirrors the A/B agreement check used
     by EPA for the AirNow Fire and Smoke Map.
@@ -128,7 +128,8 @@ def qc_ab(a, b, abs_tol: float = 5.0, rel_tol: float = 0.7):
     mean = (a + b) / 2
     diff = np.abs(a - b)
     rel = np.where(mean > 0, diff / np.maximum(mean, 1e-9), 0)
-    keep = np.isfinite(a) & np.isfinite(b) & ((diff <= abs_tol) | (rel <= rel_tol))
+    keep = (np.isfinite(a) & np.isfinite(b) & (a >= 0) & (b >= 0)
+            & ((diff <= abs_tol) | (rel <= rel_tol)))
     return mean, keep
 
 
