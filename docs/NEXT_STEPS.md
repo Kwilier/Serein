@@ -76,6 +76,10 @@ These require real information; development work cannot establish their completi
 
 After development methods are agreed, freeze and commit [BACKTEST_PROTOCOL.md](BACKTEST_PROTOCOL.md).
 Only then run the reserved 2024–25 evaluation and transfer test with the team, once.
-The planned Diebold–Mariano comparison in D-5 still needs implementation/review.
+An exploratory [paired forecast comparison](FORECAST_COMPARISON.md) is available
+for saved development predictions, with bootstrap RMSE intervals and a day-level
+Diebold-Mariano test. Review its estimand, calendar-gap variance, bandwidth, and
+multiple-comparison choices before including it in D-5. The final analysis remains
+pending team review.
 Report all outcomes, including losses, before replacing numbers in the brief and
 website. No final or transfer evaluation is performed by this increment.
