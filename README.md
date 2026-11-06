@@ -302,12 +302,12 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 
 **Status key:** **Done** = finished and merged · **In progress** = claimed, being worked on · **Open** = free to claim · **Blocked** = waiting on something outside the repo. ⭐ = on the critical path for the headline result. **(non-code)** = needs a person, not code.
 
-### Summary: what is left (updated 2026-11-04)
+### Summary: what is left (updated 2026-11-06)
 
 | Area | Done | In progress | Open | Blocked |
 |---|---|---|---|---|
 | A: Data pipeline | 13 | 1 | 1 | 0 |
-| B: SmokeCast (Model 1) | 15 | 1 | 4 | 0 |
+| B: SmokeCast (Model 1) | 16 | 1 | 3 | 0 |
 | C: AirPlan (Model 2) | 9 | 0 | 4 | 0 |
 | D: Proof & science | 8 | 0 | 3 | 1 |
 | E: Product & pitch | 3 | 0 | 8 | 0 |
@@ -356,7 +356,7 @@ remain **In progress** until reviewed and merged. Historical results are unchang
 | B-7b | Leave-sites-out test (`--holdout-sites 0.2`) | Done | Aadi-Tiwari | 2026-11-01 |
 | B-8 | Add PurpleAir nodes; measure how much low-cost sensors help (needs A-12, A-14) | Open | | |
 | B-9a | Map v0: `serein map --date ...` on a 0.25° grid | Done | Aadi-Tiwari | 2026-11-01 |
-| B-9b | Finer grid (1-2 km) around target metros + census-tract averages | Open | | |
+| B-9b | Kilometer-grid development forecasts, footprint maps and area-weighted tract summaries; exercised around Sacramento and Portland ([guide](docs/NEIGHBORHOOD_MAPS.md)) | Done | Aadi-Tiwari | 2026-11-06 |
 | B-10a | Graph vs. no-graph + settings sweep (`scripts/sweep_graph.sh`) | Done | Aadi-Tiwari | 2026-11-01 |
 | B-10b | Input ablations: sensors, HRRR, AQM matter most; fires and plumes help a little; wind-on-edges doesn't (table in `docs/METHODS.md`) | Done | Aadi-Tiwari | 2026-11-01 |
 | B-11 | Explainability: `serein explain` shows which input groups moved a forecast (integrated gradients) and which neighbors the graph listened to (`docs/METHODS.md`) | Done | Aadi-Tiwari | 2026-11-02 |
@@ -366,6 +366,11 @@ remain **In progress** until reviewed and merged. Historical results are unchang
 | B-14 | Places without a sensor get a base forecast from neighbors' readings | Done | Aadi-Tiwari | 2026-11-01 |
 | B-15 | Peaks still under-predicted at days 2-3. Options: add 2020 as training data (no HRRR smoke fields that year, but AQMv5 and weather exist), or a heavy-tailed output | Open | | |
 | B-16 | Smoke-transport features HRRR lacks (plume age, fire growth rate), or drop fire inputs to simplify | Open | | |
+
+The [neighborhood workflow](docs/NEIGHBORHOOD_MAPS.md) uses separate registries and
+NOAA caches, preserves missing tract coverage, and exports sensor support audits.
+The finer display grid does not establish finer forecast skill or calibrated
+uncertainty at new locations; those still need spatial validation.
 
 ### C: AirPlan (Model 2)
 | ID | Task | Status | Owner | Date |
