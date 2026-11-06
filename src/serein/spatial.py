@@ -301,8 +301,9 @@ def plot_cell_forecasts(forecasts: pd.DataFrame, cells: gpd.GeoDataFrame, output
 
 def forecast_neighborhood(config: Path, day: date, run: Path, cell_path: Path, output: Path) -> None:
     """Export a prepared development grid with its footprints and support report."""
-    from serein.config import load_study
+    from serein.config import Region, load_study
     from serein.data.points import load_points
+    from serein.eval.input_coverage import model_input_coverage, summarize_coverage
     from serein.eval.map_support import sensor_support
     from serein.models.infer import forecast_day
 
@@ -319,7 +320,10 @@ def forecast_neighborhood(config: Path, day: date, run: Path, cell_path: Path, o
     grid = points.loc[points.kind.eq("grid")]
     if set(grid.point_id) != set(cells.point_id):
         raise ValueError("study registry grid IDs must match the supplied cells exactly")
-    if not study.in_study(grid.lat, grid.lon).all():
+    inside = study.region.contains(grid.lat, grid.lon)
+    for excluded in study.raw.get("exclude_regions") or []:
+        inside &= ~Region(**excluded).contains(grid.lat, grid.lon)
+    if not inside.all():
         raise ValueError("grid centers must obey the study region and exclusion rules")
     # Missing NOAA rows would otherwise become imputed model inputs and could
     # produce finite predictions on a grid that has never been extracted.
@@ -333,6 +337,7 @@ def forecast_neighborhood(config: Path, day: date, run: Path, cell_path: Path, o
         raise ValueError("model history must be a positive integer")
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
         points[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
+    input_reports = []
     for name, loader, cycle in (("HRRR", hrrr.load_cycles, study.raw["availability"]["hrrr_cycle"]),
                                 ("AQM", aqm.load_cycles, study.raw["availability"]["aqm_cycle"])):
         for back in range(history):
@@ -344,6 +349,12 @@ def forecast_neighborhood(config: Path, day: date, run: Path, cell_path: Path, o
                            else cached.attrs.get("aqm_points"))
             if cached_hash != point_hash:
                 raise ValueError(f"{name} extraction metadata must match the current point registry")
+            report = model_input_coverage(cached, grid, input_day, model_meta["leads"],
+                                           source=name.lower(), cycle=cycle,
+                                           issue_hour_utc=study.raw.get("issue_hour_utc", 18.5))
+            report["history_back"] = back
+            input_reports.append(report)
+    input_coverage = pd.concat(input_reports, ignore_index=True)
     support, metadata = sensor_support(points, model_meta.get("node_ids"),
                                         k=study.raw["graph"]["k_neighbors"],
                                         max_km=study.raw["graph"]["max_km"])
@@ -353,13 +364,16 @@ def forecast_neighborhood(config: Path, day: date, run: Path, cell_path: Path, o
     forecast.to_parquet(output / "forecast.parquet", index=False)
     cells.to_parquet(output / "cells.parquet", index=False)
     support.to_parquet(output / "grid_support.parquet", index=False)
+    input_coverage.to_parquet(output / "input_coverage.parquet", index=False)
     plot_cell_forecasts(forecast, cells, output / "map.png")
     metadata.update(issue_date=day.isoformat(), model_members=model_meta.get("n_members", 1),
                     history_days=history,
                     model_seeds=model_meta.get("seeds"), registry_points_sha256=point_hash,
                     sources={"config": str(config.resolve()), "model_run": str(run.resolve()),
                              "cells": str(cell_path.resolve())},
-                    input_check="grid IDs and point hashes checked for each history day; completeness and skill not assessed")
+                    input_coverage=summarize_coverage(input_coverage),
+                    input_check="grid IDs and point hashes checked for each history day; "
+                    "NOAA sample counts audited using feature thresholds; skill not assessed")
     (output / "summary.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
 
 

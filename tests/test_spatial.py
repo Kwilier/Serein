@@ -501,14 +501,17 @@ def prepared_neighborhood(tmp_path, cells, forecasts, monkeypatch):
         "availability": {"hrrr_cycle": 12, "aqm_cycle": 12}}))
     cells.to_parquet(cell_path)
     run.mkdir()
-    (run / "model.json").write_text(json.dumps({"node_ids": ["epa"], "n_members": 5}))
+    (run / "model.json").write_text(json.dumps({"node_ids": ["epa"], "n_members": 5, "leads": [1]}))
     centers = cells.geometry.centroid.to_crs(4326)
     registry = pd.DataFrame({"point_id": [*cells.point_id, "epa"], "kind": ["grid"] * len(cells) + ["epa"],
                               "lat": [*centers.y, centers.y.iloc[0]], "lon": [*centers.x, centers.x.iloc[0]]})
+    registry["gmt_offset"] = 0.
     monkeypatch.setattr(point_module, "load_points", lambda name: registry.copy())
     point_hash = hashlib.sha256(pd.util.hash_pandas_object(
         registry[["point_id", "lat", "lon"]], index=False).to_numpy().tobytes()).hexdigest()
-    cache = pd.DataFrame({"point_id": cells.point_id})
+    cache = pd.DataFrame({"point_id": cells.point_id, "issue_date": date(2023, 8, 18),
+                          "valid_utc": pd.Timestamp("2023-08-18 12:00"), "fhr": 0, "step": 0,
+                          "var": "smoke", "value": 10.})
     cache.attrs.update(hrrr_request={"points": point_hash}, aqm_points=point_hash)
     for module in (aqm, hrrr):
         monkeypatch.setattr(module, "load_cycles", lambda *args, **kwargs: cache.copy())
@@ -532,7 +535,23 @@ def test_neighborhood_export_retains_forecast_cells_and_support(prepared_neighbo
     summary = json.loads((output / "summary.json").read_text())
     assert summary["issue_date"] == "2023-08-18"
     assert summary["model_members"] == 5
+    inputs = pd.read_parquet(output / "input_coverage.parquet")
+    assert set(inputs.point_id) == {"a", "b", "c"}
+    assert set(inputs.source) == {"hrrr", "aqm"}
+    assert inputs.status.eq("missing_rows").all()
+    assert inputs.history_back.eq(0).all()
+    assert sum(row["n_points"] for row in summary["input_coverage"]) == len(inputs)
     assert (output / "map.png").read_bytes().startswith(b"\x89PNG")
+
+
+def test_neighborhood_export_uses_committed_study_api(prepared_neighborhood, monkeypatch):
+    from serein.config import Study
+
+    monkeypatch.delattr(Study, "in_study", raising=False)
+    config, cells, run, output, _registry, calls = prepared_neighborhood
+    forecast_neighborhood(config, date(2023, 8, 18), run, cells, output)
+    assert len(calls) == 1
+    assert (output / "forecast.parquet").exists()
 
 
 @pytest.mark.parametrize("day", [date(2024, 8, 18), date(2025, 8, 18), date(2023, 1, 1)])
@@ -616,3 +635,30 @@ def test_neighborhood_checks_noaa_inputs_for_history_days(prepared_neighborhood,
     assert seen == [date(2023, 8, 18), date(2023, 8, 17)]
     assert not calls
     assert not output.exists()
+
+
+def test_neighborhood_audits_each_history_day(prepared_neighborhood, monkeypatch):
+    from serein.data import aqm, hrrr
+
+    config, cells, run, output, _registry, calls = prepared_neighborhood
+    metadata = json.loads((run / "model.json").read_text())
+    metadata["history"] = 2
+    (run / "model.json").write_text(json.dumps(metadata))
+    for module in (hrrr, aqm):
+        original = module.load_cycles
+
+        def load(days, _original=original, **kwargs):
+            frame = _original(days, **kwargs)
+            frame["issue_date"] = days[0]
+            frame["valid_utc"] = pd.Timestamp(days[0]) + pd.Timedelta(hours=12)
+            return frame
+
+        monkeypatch.setattr(module, "load_cycles", load)
+    forecast_neighborhood(config, date(2023, 8, 18), run, cells, output)
+    report = pd.read_parquet(output / "input_coverage.parquet")
+    assert len(calls) == 1
+    assert set(report.history_back) == {0, 1}
+    for back, group in report.groupby("history_back"):
+        assert group.issue_date.eq(date(2023, 8, 18) - pd.Timedelta(days=back)).all()
+        assert set(group.source) == {"hrrr", "aqm"}
+        assert set(group.point_id) == {"a", "b", "c"}

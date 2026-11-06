@@ -165,12 +165,16 @@ obey the study region and exclusions, and that both NOAA caches contain every
 grid ID for each required history day. Their point-request hashes must match the
 current registry, including its coordinates. These checks prevent an untouched
 coarse-grid cache from silently becoming imputed inputs at new locations. They
-do not establish completeness of every field or hour. Inspect the feature tables
-and extraction completeness metadata as well.
+also produce a [NOAA input-coverage audit](INPUT_COVERAGE.md) using the feature
+pipeline's sample thresholds. Missing fields and insufficient samples remain
+visible even when inference fills the inputs and returns finite forecasts. Inspect
+the feature tables and extraction completeness metadata as well.
 
 The new directory contains `forecast.parquet`, `cells.parquet`, `map.png`,
-`grid_support.parquet`, and `summary.json`. The summary records the member count,
-seeds, history length, point-request hash, source paths and structural support.
+`grid_support.parquet`, `input_coverage.parquet`, and `summary.json`. The summary
+records the member count, seeds, history length, point-request hash, source paths,
+structural support and input counts by status. The input audit includes each
+required history day and uses `history_back=0` for the current issue date.
 An error can leave a partial new export directory; use a new destination on retry.
 An existing destination is refused.
 
