@@ -9,6 +9,8 @@ Example: a Sacramento site (offset -8). Local day 2024-09-02 covers UTC
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -78,8 +80,18 @@ def model_daily(df: pd.DataFrame, offsets: pd.Series, value_col: str = "value",
                               ("max", "float64"), ("size", "int64")):
             g[column] = pd.Series(index=g.index, dtype=dtype)
         return g
-    issue_dates = [pd.to_datetime(value, format="mixed") for value in d["issue_date"]]
-    d["issue_date"] = [pd.NaT if pd.isna(value) else value.date() for value in issue_dates]
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            issue_dates = pd.to_datetime(d["issue_date"], format="mixed")
+        if not pd.api.types.is_datetime64_any_dtype(issue_dates.dtype):
+            raise TypeError("mixed issue-date time zones")
+        d["issue_date"] = issue_dates.dt.date
+    except (ValueError, TypeError, FutureWarning):
+        # Mixed offsets can describe the same instant on different calendar days.
+        # Preserve each label's own date instead of converting the series to UTC.
+        issue_dates = [pd.to_datetime(value, format="mixed") for value in d["issue_date"]]
+        d["issue_date"] = [pd.NaT if pd.isna(value) else value.date() for value in issue_dates]
     d["valid_utc"] = pd.to_datetime(d["valid_utc"], utc=True, format="mixed")
     if d["valid_utc"].isna().any():
         raise ValueError("valid_utc must not contain missing timestamps")
