@@ -251,6 +251,10 @@ uv run serein map --date 2023-08-18 --run west_us_dev
 uv run streamlit run app/streamlit_app.py
 ```
 
+On Windows, use the [native Python development runner](docs/WINDOWS_DEVELOPMENT.md)
+to run the study without Bash, with separate output folders and a suite time limit.
+It also exports [paired forecast comparisons](docs/FORECAST_COMPARISON.md).
+
 No API keys are needed for the main study. Optional keys (NASA FIRMS, PurpleAir) go in a `.env` file at the repo root (never committed); see `.env.example`.
 
 ## Finishing the proof: the final test (do this ONCE)
