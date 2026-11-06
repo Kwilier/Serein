@@ -194,6 +194,11 @@ prediction can be persistence when NOAA forecasts are unavailable.
 
 Figures: `outputs/backtest/west_us_dev/`. Map: `outputs/maps/map_20230818.png`.
 
+For peak and warning diagnostics, the [episode report](docs/EPISODE_EVALUATION.md)
+audits saved development forecasts against contiguous high-PM periods. It compares
+models on common complete episodes and retains missing forecasts and unknown
+episode boundaries. B-15 remains open; this report measures the problem.
+
 ---
 
 ## Repo layout
