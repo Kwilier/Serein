@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
@@ -181,7 +182,7 @@ def test_keyboard_interrupt_records_partial_progress(tmp_path, monkeypatch, caps
     def interrupt(*args, **kwargs):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(development.subprocess, "run", interrupt)
+    monkeypatch.setattr(development, "run_logged", interrupt)
     assert run_plan(plan) == 130
     assert "ALLDONE" not in capsys.readouterr().out
     manifest = json.loads((plan.log_dir / "manifest.json").read_text())
@@ -196,7 +197,7 @@ def test_unexpected_failure_does_not_leave_a_successful_manifest(tmp_path, monke
     def fail(*args, **kwargs):
         raise RuntimeError("unexpected subprocess failure")
 
-    monkeypatch.setattr(development.subprocess, "run", fail)
+    monkeypatch.setattr(development, "run_logged", fail)
     with pytest.raises(RuntimeError, match="unexpected subprocess failure"):
         run_plan(plan)
     manifest = json.loads((plan.log_dir / "manifest.json").read_text())
@@ -223,6 +224,22 @@ def test_suite_timeout_stops_its_child_and_prevents_later_steps(tmp_path, capsys
     assert manifest["results"][0]["error"] == "suite time limit exceeded"
 
 
+def test_suite_timeout_stops_descendants_before_they_can_write(tmp_path):
+    marker = tmp_path / "survived.txt"
+    ready = tmp_path / "started.txt"
+    child = ("import pathlib,time; "
+             f"pathlib.Path({str(ready)!r}).write_text('started'); time.sleep(1.5); "
+             f"pathlib.Path({str(marker)!r}).write_text('survived')")
+    parent = ("import subprocess,sys,time; "
+              f"subprocess.Popen([sys.executable, '-c', {child!r}]); time.sleep(2.5)")
+    plan = Plan(tmp_path, tmp_path / "logs", (),
+                (Step("tree", (sys.executable, "-c", parent)),), timeout_seconds=.8)
+    assert run_plan(plan) == 124
+    assert ready.exists(), "the descendant must start before the timeout"
+    time.sleep(1.8)
+    assert not marker.exists(), "a timed-out step left a descendant running"
+
+
 def test_deadline_is_shared_across_steps_not_reset_per_command(tmp_path, monkeypatch):
     plan = replace(subprocess_plan(tmp_path), timeout_seconds=1)
     monotonic_values = iter([0., 0.25, 0.75, 1.25])
@@ -233,7 +250,7 @@ def test_deadline_is_shared_across_steps_not_reset_per_command(tmp_path, monkeyp
         timeouts.append(kwargs["timeout"])
         return subprocess.CompletedProcess(command, 0)
 
-    monkeypatch.setattr(development.subprocess, "run", finish)
+    monkeypatch.setattr(development, "run_logged", finish)
     assert run_plan(plan) == 124
     assert timeouts == [0.75, 0.25]
     manifest = json.loads((plan.log_dir / "manifest.json").read_text())

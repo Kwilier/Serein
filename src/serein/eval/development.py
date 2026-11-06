@@ -15,6 +15,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from serein.config import REPO_ROOT, load_study
+from serein.eval.process import run_logged
 
 ABLATIONS = (
     ("full", ()),
@@ -145,9 +146,8 @@ def run_plan(plan: Plan) -> int:
                     remaining = None if deadline is None else max(0, deadline - time.monotonic())
                     if remaining == 0:
                         raise subprocess.TimeoutExpired(step.command, 0)
-                    completed = subprocess.run(step.command, cwd=plan.root, env=env,
-                                               stdout=stream, stderr=subprocess.STDOUT,
-                                               check=False, timeout=remaining)
+                    completed = run_logged(step.command, cwd=plan.root, env=env,
+                                           stdout=stream, timeout=remaining)
                 exit_code = completed.returncode
             except subprocess.TimeoutExpired:
                 timed_out = True
