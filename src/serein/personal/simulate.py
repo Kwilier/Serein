@@ -33,6 +33,7 @@ def simulate_pm_season(n_days: int = 150, seed: int = 0) -> np.ndarray:
         z[t] = 0.7 * z[t - 1] + rng.normal(0, 0.25)
     pm = 7.0 * np.exp(z)
     for _ in range(rng.poisson(3) + 1):
+        # Short demo histories still need a valid start; preserve longer seasons' draws.
         start = rng.integers(0, max(1, n_days - 3))
         length = rng.integers(2, 11)
         peak = rng.choice([25, 45, 80, 150, 250], p=[0.3, 0.3, 0.2, 0.15, 0.05])

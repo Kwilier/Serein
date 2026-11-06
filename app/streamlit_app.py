@@ -38,12 +38,18 @@ if not maps:
 with st.sidebar:
     f = st.selectbox("Forecast issued", maps, format_func=lambda p: p.stem.replace("forecast_", ""))
     fc = pd.read_parquet(f)
+    # Archived forecasts predate physical bounds in the inference pipeline.
+    quantile_columns = ["q05", "q25", "q50", "q75", "q95"]
+    fc[quantile_columns] = fc[quantile_columns].clip(lower=0)
     lead = st.radio("Day", sorted(fc["lead"].unique()),
-                    format_func=lambda x: ["today", "tomorrow", "day +2", "day +3"][x])
-    lang = st.selectbox("Language", ["en", "es"], format_func=lambda x: {"en": "English", "es": "Español"}[x])
+                    format_func=lambda x: ["today", "tomorrow", "day +2", "day +3"][x],
+                    key="forecast_lead")
+    lang = st.selectbox("Language", ["en", "es"],
+                        format_func=lambda x: {"en": "English", "es": "Español"}[x],
+                        key="language")
 
 d = fc[fc["lead"] == lead].copy()
-tab_map, tab_family, tab_log = st.tabs(["Map", "Family plan", "Daily check-in"])
+tab_map, tab_family, tab_log = st.tabs(["Map", "Family plan (simulation)", "Daily check-in"])
 
 with tab_map:
     import folium
@@ -66,14 +72,16 @@ with tab_map:
     st.caption(" · ".join(f"{c}" for c in CATEGORIES))
 
 with tab_family:
+    st.info("This plan uses a synthetic child and simulated symptom history. "
+            "Daily check-ins are stored separately from this simulation.")
     c1, c2 = st.columns([1, 2])
     with c1:
-        name = st.text_input("Child's first name", "Maya")
+        name = st.text_input("Demo child's first name", "Maya")
         lat = st.number_input("Home latitude", value=38.58, format="%.3f")
         lon = st.number_input("Home longitude", value=-121.49, format="%.3f")
         seed = st.number_input("Synthetic child (demo log)", 1, 999, 3)
-        days = st.slider("Days of symptom log", 0, 120, 60)
-        outdoor = st.slider("Time outdoors tomorrow", 0.0, 1.0, 0.3)
+        days = st.slider("Days of synthetic symptom history", 0, 120, 60, key="history_days")
+        outdoor = st.slider("Time outdoors on the forecast day", 0.0, 1.0, 0.3)
         cold = st.checkbox("Has a cold right now")
     near = d.iloc[np.argmin((d["lat"] - lat) ** 2 + ((d["lon"] - lon) * np.cos(np.radians(lat))) ** 2)]
     kid = simulate_children(1, int(seed))[0]
@@ -84,7 +92,7 @@ with tab_family:
         model.fit(X, log["y"].to_numpy())
     q = {0.05: near.q05, 0.25: near.q25, 0.5: near.q50, 0.75: near.q75, 0.95: near.q95}
     plan = make_plan(model, name, q, pm_lag1=near.q50, pm_lag2=near.q50, outdoor_frac=outdoor,
-                     cold=int(cold), day_label=["today", "tomorrow", "day_after", "day_after"][lead],
+                     cold=int(cold), day_label=["today", "tomorrow", "day_after", "day_plus3"][lead],
                      on=near.valid_date, language=lang)
     with c2:
         color = {"green": "#1e8449", "yellow": "#b7950b", "red": "#c0392b"}[plan.zone]
@@ -92,7 +100,7 @@ with tab_family:
         st.text(plan.message)
         s = model.sensitivity()
         st.caption(f"Model: odds of symptoms x{s['or_per_10']:.2f} per +10 µg/m³ "
-                   f"(90% range {s['lo']:.2f}-{s['hi']:.2f}) after {days} logged days "
+                   f"(90% range {s['lo']:.2f}-{s['hi']:.2f}) after {days} simulated days "
                    f"(synthetic child, true type: {kid.kind.replace('_', ' ')}).")
 
 with tab_log:
@@ -101,7 +109,9 @@ with tab_log:
     from serein.personal.log import CheckIn, to_frame
 
     st.subheader("10-second daily check-in")
-    st.caption("Stays on this device. Nothing is uploaded. Demo only: do not enter real health data.")
+    st.caption("Demo only: use fictional entries. Check-ins are held in memory on the app "
+               "server for this session and are not saved to a database. Download the log "
+               "to keep a copy, or clear it below.")
     if "log" not in st.session_state:
         st.session_state["log"] = []
     with st.form("checkin"):
@@ -123,6 +133,9 @@ with tab_log:
                          "call their doctor. If they struggle to breathe, call 911.")
             else:
                 st.success("Saved.")
+    if st.button("Clear session log", key="clear_session_log", disabled=not st.session_state["log"]):
+        st.session_state["log"] = []
+        st.success("Session log cleared.")
     log = to_frame(st.session_state["log"])
     if len(log):
         st.dataframe(log, width="stretch")

@@ -61,10 +61,12 @@ def read_day(d: date) -> gpd.GeoDataFrame | None:
 
 
 def density_at_points(d: date, points: pd.DataFrame) -> np.ndarray:
-    """Max HMS density level (0 none .. 3 heavy) covering each point on day d."""
+    """Max density (0 none .. 3 heavy); NaN if the day's smoke map is unavailable."""
     g = read_day(d)
-    out = np.zeros(len(points), dtype=np.int8)
-    if g is None or g.empty:
+    if g is None:
+        return np.full(len(points), np.nan)
+    out = np.zeros(len(points), dtype=float)
+    if g.empty:
         return out
     pts = gpd.GeoDataFrame(
         {"i": np.arange(len(points))},

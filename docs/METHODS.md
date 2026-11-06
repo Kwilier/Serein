@@ -36,8 +36,8 @@ wrong. This is much easier to learn with a few seasons of data.
 - Location and day of year
 
 ### Network
-1. Encoder: a small neural net turns each node's inputs into a 96-number summary.
-2. Three rounds of message passing. In each round every node gathers messages
+1. Encoder: a small neural net turns each node's inputs into a 64-number summary by default.
+2. Two rounds of message passing by default. In each round every node gathers messages
    from its neighbors. A neighbor's weight (attention) depends on both nodes'
    summaries, the distance and direction between them, and **how strongly the
    wind blows from the neighbor toward the node**.
@@ -57,6 +57,23 @@ reality fell outside our 90% range, then widen (or narrow) all future ranges by
 just enough that 90% of calibration outcomes would have been inside. We do this
 separately for clean, moderate, and smoky forecasts, so the range stays honest
 on smoke days.
+
+### Exporting the evaluated forecast
+
+New runs save every seed's weights in a versioned artifact. Evaluation, map inference
+and transfer use the same mean of member quantiles in log1p space, followed by one
+shared calibration operation. Graph and no-graph comparisons use equal seed counts.
+The calibrated interval is constrained to contain the median; inner quantiles are
+constrained to that interval, and PM2.5 is bounded below by zero. Explanations retain
+gradients through the ensemble and average last-layer attention across members.
+
+Older artifacts still load with a warning, but their missing ensemble members cannot
+be reconstructed. Regenerate them using development training. Historical numbers below
+predate these fixes and need a development rerun before describing the revised system.
+
+Unavailable HMS maps produce missing features, not zero smoke. Only an available map
+reporting zero smoke contributes to the clean-day site background. This changes the
+feature table: rebuild cached tables before retraining.
 
 ### Math summary
 Let x_i be node i's features, h_i^0 = MLP(x_i). For layer ℓ:

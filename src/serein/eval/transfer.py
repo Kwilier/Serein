@@ -26,6 +26,8 @@ from serein.features.graph import build_knn_graph
 from serein.features.prepare import leads_of, to_graph_data
 from serein.features.table import processed_dir
 from serein.models.baselines import baselines
+from serein.models.conformal import calibrate_quantiles
+from serein.models.gnn import QUANTILES
 from serein.models.infer import load_artifacts
 
 
@@ -47,13 +49,14 @@ def run_transfer(study: Study, run_dir: Path, split: str = "test", tag: str = ""
     rows_q = np.full((len(tab),) + q.shape[2:], np.nan, np.float32)
     t, n = np.where(gd.row_index >= 0)
     rows_q[gd.row_index[t, n]] = q[t, n]
-    lo, hi = cqr.apply(rows_q[..., 0], rows_q[..., -1], rows_q[..., 2])
+    rows_q = calibrate_quantiles(rows_q, cqr, QUANTILES)
     pred = {"smokecast": np.expm1(rows_q[..., 2]), **baselines(tab, prep, leads)}
     obs = tab[[f"y_L{lead}" for lead in leads]].to_numpy(float)
     dates = tab["issue_date"].to_numpy()
     out = []
     for li, lead in enumerate(leads):
-        intervals = interval_metrics(np.expm1(lo[:, li]), np.expm1(hi[:, li]), obs[:, li])
+        intervals = interval_metrics(np.expm1(rows_q[:, li, 0]),
+                                     np.expm1(rows_q[:, li, -1]), obs[:, li])
         for m, p in pred.items():
             rec = {"lead": lead, "model": m, **point_metrics(p[:, li], obs[:, li])}
             if m == "smokecast":

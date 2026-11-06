@@ -48,6 +48,21 @@ uv run streamlit run app/streamlit_app.py             # demo app; uses the sampl
 ```
 Check: the first command prints a green and a red action plan; the second opens a map in the browser.
 
+The family-plan tab uses a synthetic child and simulated symptom history, including when
+you change the number of history days. Daily check-ins are a separate demonstration:
+use fictional entries only. They are held in memory on the app server for the session,
+with CSV export and a **Clear session log** button; they are not saved to a database.
+
+### Verification and next steps
+
+Run `uv run pytest -q` and `uv run ruff check .` before a push. The suite includes
+the app interactions and a small, real two-seed training → calibration → export →
+forecast check using synthetic environmental data. GitHub Actions runs these checks
+with CPU PyTorch and app extras on pull requests and pushes to `main`.
+
+See [the next steps](docs/NEXT_STEPS.md) for the order of remaining work and
+[PurpleAir QC](docs/PURPLEAIR_QC.md) for the new offline sensor-screening command.
+
 ### Step 5 (optional). Download the data and train models
 Only needed for tasks that train or score models (most A, B and D tasks).
 - `./scripts/download_all.sh` pulls 5 fire seasons of free public data. About 2-3 hours, roughly 150 GB downloaded, about 2.2 GB kept on disk. No API keys needed.
@@ -84,27 +99,27 @@ Check: `uv run serein backtest --seeds 1 --epochs 5 --tag smoke_test` finishes a
 
 ```mermaid
 flowchart LR
-    subgraph Free public data
-        FIRMS[NOAA HMS + NASA<br/>fire detections]
-        HMS[NOAA HMS<br/>smoke plume maps]
-        PA[PurpleAir<br/>low-cost sensors<br/>(next step)]
-        EPA[EPA AirNow<br/>regulatory monitors]
-        HRRR[NOAA HRRR-Smoke<br/>+ weather]
-        AQM[NOAA AQM<br/>72 h PM2.5]
+    subgraph public_data["Free public data"]
+        FIRMS["NOAA HMS + NASA<br/>fire detections"]
+        HMS["NOAA HMS<br/>smoke plume maps"]
+        PA["PurpleAir<br/>low-cost sensors<br/>(next step)"]
+        EPA["EPA AirNow<br/>regulatory monitors"]
+        HRRR["NOAA HRRR-Smoke<br/>+ weather"]
+        AQM["NOAA AQM<br/>72 h PM2.5"]
     end
-    PA --> QC[Sensor QC +<br/>EPA correction]
+    PA --> QC["Sensor QC +<br/>EPA correction"]
     EPA --> G
-    QC --> G[Sensor graph<br/>nodes = sensors,<br/>edges = neighbors + wind]
-    FIRMS --> F[Features at<br/>every node]
+    QC --> G["Sensor graph<br/>nodes = sensors,<br/>edges = neighbors + wind"]
+    FIRMS --> F["Features at<br/>every node"]
     HMS --> F
     HRRR --> F
     AQM --> F
     F --> G
-    G --> M1[Model 1: SmokeCast GNN<br/>day 1-3 PM2.5 + range]
-    M1 --> MAP[Neighborhood map]
-    M1 --> M2[Model 2: AirPlan<br/>personal risk]
-    LOG[Child's symptom +<br/>inhaler log] --> M2
-    M2 --> PLAN[Action plan<br/>in family's language]
+    G --> M1["Model 1: SmokeCast GNN<br/>day 1-3 PM2.5 + range"]
+    M1 --> MAP["Neighborhood map"]
+    M1 --> M2["Model 2: AirPlan<br/>personal risk"]
+    LOG["Child's symptom +<br/>inhaler log"] --> M2
+    M2 --> PLAN["Action plan<br/>in family's language"]
 ```
 
 **The forecast target.** The 24-hour average PM2.5 (µg/m³) for each local day, at each location. This is the quantity the EPA AQI uses (2024 breakpoints: Good ≤ 9.0, Moderate ≤ 35.4, USG ≤ 55.4, Unhealthy ≤ 125.4, Very Unhealthy ≤ 225.4).
@@ -138,7 +153,12 @@ Gotchas we found (details in [docs/DATA.md](docs/DATA.md)): HRRR `MASSDEN` was l
 
 ---
 
-## Current results (dev mode, 2026-11-01)
+## Current results (historical dev snapshot, 2026-11-02)
+
+These saved numbers predate the latest observation-processing, missing-smoke-map,
+forecast-bound and ensemble-export fixes. New graph/no-graph runs also use matching
+ensemble sizes. Rebuild feature tables and rerun the development suite before
+updating these results or claiming accuracy for the revised pipeline.
 
 Trained on 2021-22 fire seasons, scored on held-out weeks of 2023. **These are
 development numbers, not the final test.** The 2024-25 test seasons are locked
@@ -147,12 +167,15 @@ until the protocol is frozen (TODO D-4/D-5).
 | Error (RMSE, µg/m³) | Today | +1 day | +2 days | +3 days |
 |---|---|---|---|---|
 | **SmokeCast** | **4.5** | **7.9** | **9.7** | **11.4** |
-| Best NOAA forecast | 10.1 | 11.0 | 12.3 | 15.5 |
+| AQM → HRRR → persistence fallback | 10.1 | 11.0 | 12.3 | 15.5 |
 | Same model, graph turned off | 4.8 | 8.2 | 10.3 | 12.0 |
 | **At monitors hidden from SmokeCast** (no sensor) | **7.0** | **8.5** | **10.1** | **11.3** |
 | NOAA at those same hidden monitors | 10.5 | 11.1 | 11.9 | 14.1 |
 
-- Beats the best NOAA forecast at every lead (day-bootstrap 95% CIs all below zero), and
+The fallback selects forecasts by availability, in the order shown. Its day-3
+prediction can be persistence when NOAA forecasts are unavailable.
+
+- Beats that fallback at every lead (day-bootstrap 95% CIs all below zero), and
   beats NOAA at 87% of 344 individual monitors (day 1).
 - **Warnings a day ahead:** of 244 reporting-area days that really turned orange-or-worse,
   Serein warned on 71% vs. 46% for EPA's official forecast, with fewer false alarms
@@ -275,17 +298,20 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 
 **Status key:** **Done** = finished and merged · **In progress** = claimed, being worked on · **Open** = free to claim · **Blocked** = waiting on something outside the repo. ⭐ = on the critical path for the headline result. **(non-code)** = needs a person, not code.
 
-### Summary: what is left (updated 2026-11-02)
+### Summary: what is left (updated 2026-11-04)
 
 | Area | Done | In progress | Open | Blocked |
 |---|---|---|---|---|
-| A: Data pipeline | 13 | 0 | 2 | 0 |
-| B: SmokeCast (Model 1) | 15 | 0 | 4 | 0 |
+| A: Data pipeline | 13 | 1 | 1 | 0 |
+| B: SmokeCast (Model 1) | 15 | 1 | 4 | 0 |
 | C: AirPlan (Model 2) | 9 | 0 | 4 | 0 |
 | D: Proof & science | 8 | 0 | 3 | 1 |
 | E: Product & pitch | 3 | 0 | 8 | 0 |
 | S: Submission (Conrad) | 2 | 0 | 9 | 0 |
-| Q: Code quality | 6 | 0 | 1 | 0 |
+| Q: Code quality | 6 | 2 | 1 | 0 |
+
+The `htvarkali` items below are implemented on the reliability/QC branch and
+remain **In progress** until reviewed and merged. Historical results are unchanged.
 
 **Most urgent open work, in order:**
 1. S-1 Confirm in the Conrad portal that the Lean Canvas was submitted (due Oct 29) and which category was chosen. If it was not submitted, the entry cannot compete.
@@ -308,7 +334,7 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 | A-9 | "No peeking" rules: only data that existed at issue time | Done | Aadi-Tiwari | 2026-11-01 |
 | A-10 ⭐ | Full download of all 5 seasons (EPA, HMS, HRRR, AQM); about 2.2 GB on disk | Done | Aadi-Tiwari | 2026-11-01 |
 | A-11 | AQM archive v5/v6/v7 loader (v5 to 2021-07-19 is 48 h only) | Done | Aadi-Tiwari | 2026-11-01 |
-| A-12 | PurpleAir QC: A/B channel agreement, stuck sensors, indoor sensors removed, outliers vs. neighbors | Open | | |
+| A-12 | Offline PurpleAir QC: auditable A/B, indoor, stuck and neighbor screening; CLI and synthetic tests ([guide](docs/PURPLEAIR_QC.md)) | In progress | htvarkali | 2026-11-04 |
 | A-13 | HRRR weather at sites: 10 m wind, PBL height, RH, 2 m temperature (precipitation not yet added) | Done | Aadi-Tiwari | 2026-11-01 |
 | A-14 | PurpleAir history for ~300 sensors in 2 test metros (Sacramento, Portland), after the cost estimate is approved | Open | | |
 | A-15 | Data dictionary generated from the real table: `docs/DATA_DICTIONARY.md` | Done | Aadi-Tiwari | 2026-11-01 |
@@ -331,6 +357,7 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 | B-10b | Input ablations: sensors, HRRR, AQM matter most; fires and plumes help a little; wind-on-edges doesn't (table in `docs/METHODS.md`) | Done | Aadi-Tiwari | 2026-11-01 |
 | B-11 | Explainability: `serein explain` shows which input groups moved a forecast (integrated gradients) and which neighbors the graph listened to (`docs/METHODS.md`) | Done | Aadi-Tiwari | 2026-11-02 |
 | B-12 | 5-seed ensemble (`--seeds 5`, now the default) | Done | Aadi-Tiwari | 2026-11-01 |
+| B-12b | Export/load every ensemble member for maps, transfer and explanations; compare graph/no-graph with equal seed counts | In progress | htvarkali | 2026-11-04 |
 | B-13 | Smoke days weighted 6x in training: day-1 forecasts reach a median 80% of the true peak (NOAA: 31%) | Done | Aadi-Tiwari | 2026-11-01 |
 | B-14 | Places without a sensor get a base forecast from neighbors' readings | Done | Aadi-Tiwari | 2026-11-01 |
 | B-15 | Peaks still under-predicted at days 2-3. Options: add 2020 as training data (no HRRR smoke fields that year, but AQMv5 and weather exist), or a heavy-tailed output | Open | | |
@@ -348,7 +375,7 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 | C-7a | Spanish wording aligned with EPA's official Spanish AQI names and CDC asthma terms | Done | Aadi-Tiwari | 2026-11-01 |
 | C-7 | **(non-code)** Native-speaker review of `src/serein/personal/messages/es.yaml`; later Chinese, Vietnamese, Tagalog, Hindi/Punjabi | Open | | |
 | C-8 | **(non-code)** Pediatric pulmonologist, asthma educator or school nurse reviews action-plan wording and the priors table (includes C-5b). Record their feedback | Open | | |
-| C-9 | Daily check-in: 6 taps (`serein/personal/log.py`) + "Daily check-in" tab in the app; kept only in the browser session | Done | Aadi-Tiwari | 2026-11-01 |
+| C-9 | Daily check-in: 6 taps (`serein/personal/log.py`) + "Daily check-in" tab in the app; fictional entries held in server memory for the session, with CSV export and a clear-log button | Done | Aadi-Tiwari | 2026-11-01 |
 | C-10 | Confounders in the child model: ozone (prior from Strickland 2010), hot day and high-pollen day (wide "no effect" priors), next to the existing cold/virus term. They never trigger a smoke warning on their own (`docs/METHODS.md#priors`) | Done | Aadi-Tiwari | 2026-11-02 |
 | C-10b | Feed real values into plans: AQM ozone and HRRR max temperature from the forecast; a "high pollen today?" box in the app check-in | Open | | |
 | C-11 | More languages in `messages/` (only after C-7 sets the review process) | Open | | |
@@ -402,13 +429,15 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 ### Q: Code quality
 | ID | Task | Status | Owner | Date |
 |---|---|---|---|---|
-| Q-1 | Tests (39) and lint pass; fresh-clone install checked | Done | Aadi-Tiwari | 2026-11-02 |
+| Q-1 | Tests and lint pass; fresh-clone install checked | Done | Aadi-Tiwari | 2026-11-02 |
 | Q-2 | Fix: `.gitignore` rule for `data/` also hid the code folder `src/serein/data/` | Done | Aadi-Tiwari | 2026-11-01 |
 | Q-3 | Full code review of `src/`, `app/`, `scripts/`: 14 bugs fixed (site-history leak through `hrrr_pm`, graph self-edges, EPA area matching across states, model-run timing check, fire-data fallback, AQM grid change, AirPlan line search and forecast tails, time zones near borders, partial AirNow days, script log folders, PurpleAir data path), regression tests added, dev suite rerun | Done | Aadi-Tiwari | 2026-11-01 |
 | Q-5 | Fix: `python -m serein.eval.figures` crashed before 3 figures and the peak report; the dev suite now reports figure, map and impact failures instead of hiding them | Done | Aadi-Tiwari | 2026-11-01 |
-| Q-4 | Choose a license (MIT suggested for code) and add `LICENSE` | Open | | |
+| Q-4 | Choose a license and add `LICENSE`: MIT, explained in the README's License section and set in `pyproject.toml` | Done | Aadi-Tiwari | 2026-11-04 |
 | Q-6 | Speed: `CQR.apply`, the GBM neighbor features, `prob_exceed` and the fire features are vectorized (tests check they match the old loops); `download firms` fetches only season days | Done | Aadi-Tiwari | 2026-11-02 |
 | Q-7 ⭐ | Repeatable training: same seed now gives the identical model on the GPU (two runs of the old code moved the day-2 warning rate from 70% to 63%). Dev results rerun on this code. Reports now say "+ uncommitted changes" when the code differs from the commit, and `--final` refuses to run on uncommitted code | Done | Aadi-Tiwari | 2026-11-02 |
+| Q-8 | CPU GitHub checks with app extras and real synthetic training/export/inference test; executable scripts stop on failures | In progress | htvarkali | 2026-11-04 |
+| Q-9 | Shared nonnegative ordered forecast calibration, explicit missing HMS data, sparse-network map guards and state-specific EPA area matching | In progress | htvarkali | 2026-11-04 |
 
 ---
 
@@ -417,8 +446,34 @@ Official 2026-27 Conrad dates ([Student Guide](https://conrad.spacecenter.org/wp
 - Serein is **not a medical device** and doesn't replace a doctor's asthma action plan. Every plan says so.
 - No real child's data is used without written parental consent. Development uses **synthetic children** only. See [docs/ETHICS.md](docs/ETHICS.md).
 - Health messages are **never** machine-translated without native-speaker review.
-- All data stays local; no personal health data is uploaded anywhere.
+- The demo accepts fictional check-ins only. Entries are held in app-server memory for
+  the session, with no database storage. Hosting the app remotely sends entries to that
+  server; running it locally keeps the server on your computer.
 
 ## License
 
-To be decided (MIT suggested for code; task Q-4). Data sources keep their own terms.
+Serein's code is released under the [MIT License](LICENSE). Copyright (c) 2026 Team Serein.
+
+### What this means
+
+MIT is a short, permissive open-source license. In plain terms:
+
+- **You can** use, copy, change, merge, publish, share, sublicense and sell copies of the code, for any purpose, including commercial use. No fee and no need to ask us first.
+- **The one condition:** keep the copyright line and the license text (the [LICENSE](LICENSE) file) with any copy or substantial part of the code you share.
+- **No warranty:** the code is provided "as is". If it breaks or gives a wrong answer, the authors are not liable for what happens. You use it at your own risk.
+
+For example, a school could fork Serein, swap in its own region and run it for its families. That is allowed, as long as the fork keeps `LICENSE` with the original copyright line.
+
+### What it covers
+
+The license covers everything in this repo that the team wrote: the Python code in `src/`, `app/`, `scripts/` and `tests/`, the docs, the project website in `website/`, and the synthetic data generators.
+
+### What it does not cover
+
+- **Data sources.** Downloaded data (EPA AirNow, NOAA HRRR-Smoke and HMS, NASA FIRMS, PurpleAir and the others under [Data sources](#data-sources-all-free-all-checked-on-2026-11-01)) stays under each provider's own terms. The MIT License does not relicense it. Check those terms before you redistribute any downloaded data or anything built from it, and give the credit each provider asks for.
+- **Health use.** The license allows reuse of the code. It does not make Serein a medical device or medical advice; see [Safety and ethics](#safety-and-ethics-short-version). Anyone who deploys a fork for real families is responsible for its safety, clinical review and translations.
+- **Names.** It does not grant rights to the Serein name or to the team members' names.
+
+### Contributing
+
+By opening a pull request, you agree that your contribution is released under the same MIT License.
