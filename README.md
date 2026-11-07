@@ -377,6 +377,11 @@ NOAA caches, preserves missing tract coverage, and exports sensor support audits
 The finer display grid does not establish finer forecast skill or calibrated
 uncertainty at new locations; those still need spatial validation.
 
+The [interval diagnostic report](docs/INTERVAL_DIAGNOSTICS.md) checks saved
+development bounds by monitor, issue month and previous-day smoke, with missing
+row counts and calendar-block bootstrap intervals. These exploratory checks do
+not establish conditional or spatial calibration.
+
 ### C: AirPlan (Model 2)
 | ID | Task | Status | Owner | Date |
 |---|---|---|---|---|
