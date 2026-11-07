@@ -105,3 +105,8 @@ may have dropped. It does not establish observation, HMS or fire-data availabili
 whether a run was publicly posted by the study's issue time, imputation effects,
 spatial forecast skill, or calibrated uncertainty at new locations. Keep these
 checks separate from the reserved evaluation.
+
+For an entire development season, the [archive audit](CACHE_ARCHIVE_AUDIT.md)
+enumerates expected cache dates, records file hashes and errors, and streams these
+availability counts without changing the cached inputs. Missing files, invalid
+files and unknown registry provenance remain distinct in its inventory.
