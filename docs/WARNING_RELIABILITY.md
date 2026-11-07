@@ -145,3 +145,8 @@ report with the [interval diagnostics](INTERVAL_DIAGNOSTICS.md),
 [input-support audit](FEATURE_SUPPORT.md) and
 [development calendar review](DEVELOPMENT_PLANS.md). Earlier use of the same
 development dates still limits any claim about generalization.
+
+For rare-event ranking and the burden of fixed warning cutoffs, use the
+[event discrimination report](EVENT_DISCRIMINATION.md). It adds exact ROC and
+precision-recall curves, class-support counts and daily confusion audits.
+Its fixed-cutoff bounds explicitly flag resamples with undefined rates.
