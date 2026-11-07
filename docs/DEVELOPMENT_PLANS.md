@@ -126,6 +126,11 @@ order using every declared range. It can be false when calendars are separated,
 for example when an early scoring range precedes tuning. It does not establish
 that an observation was published before a later forecast was issued.
 
+The [input-support audit](FEATURE_SUPPORT.md) compares explicit raw features
+between fixed reference and query tables, including missingness, monitor support
+and seasonal distribution shifts. It does not establish exchangeability or
+conditional interval coverage.
+
 Choose schedules before looking at their model scores. Record the reason for
 each boundary and any event, seasonal or monitor-population tradeoffs.
 Reassigning development dates does not undo earlier tuning on those dates or
