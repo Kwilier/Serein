@@ -166,6 +166,10 @@ figures, coverage, warning tradeoffs, and comparison populations separately.
 
 ## Verification
 
+Before interpreting development scores, run the [target-label split audit](SPLIT_AUDIT.md).
+Different issue weeks can reuse the same observed target day at different leads.
+The audit proposes calendar exclusions for review without changing the backtest.
+
 ```powershell
 uv run pytest tests/test_development.py tests/test_process.py tests/test_comparison.py -q
 uv run ruff check .
