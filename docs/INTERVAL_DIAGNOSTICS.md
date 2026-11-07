@@ -6,6 +6,10 @@ populations and shows both tails of the misses. It reads saved development
 predictions without training, recalibrating, downloading inputs, or changing
 the source run.
 
+The separate [warning-probability report](WARNING_RELIABILITY.md) checks saved
+event probabilities with Brier scores and fixed-bin reliability summaries.
+Outer-interval coverage does not establish probability calibration.
+
 ```powershell
 uv run python -m serein.eval.intervals outputs/backtest/west_us_dev `
   --output interval_report --group point --group month --group smoke --plot
