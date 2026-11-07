@@ -1,5 +1,9 @@
 # Development target-label overlap
 
+To inspect an explicit alternative with separate training, tuning, calibration
+and scoring roles, use the [development schedule planner](DEVELOPMENT_PLANS.md).
+It reports available samples and calendar conflicts without applying a new split.
+
 Run this check before interpreting development scores or freezing the analysis:
 
 ```powershell
