@@ -159,3 +159,9 @@ exactly. These are development diagnostics, with settings selected using 2023;
 the underlying legacy NOAA caches lack extraction-registry hashes. They do not
 replace the historical results snapshot, verify new-location calibration, or
 complete the reserved evaluation.
+
+For the probability assumptions left unspecified between quantile levels, use
+the [quantile sensitivity audit](QUANTILE_PROBABILITY.md). It reports conditional
+probability brackets and fixed-cutoff decision ambiguity without changing the
+forecast conversion. Outer-interval coverage does not validate those brackets
+as real-world probability intervals.
