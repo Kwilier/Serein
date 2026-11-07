@@ -125,8 +125,12 @@ with tab_log:
                            format_func=lambda x: ["little (<1 h)", "some (1-3 h)", "a lot (3 h+)"][x])
         sick = st.checkbox("Has a cold / is sick")
         missed = st.checkbox("Missed daily controller medicine")
+        pollen = st.radio("High pollen on this day?", ["Not sure", "Yes", "No"],
+                          horizontal=True, key="checkin_pollen",
+                          help="Optional. Choose Not sure if you do not know the pollen level.")
         if st.form_submit_button("Save today"):
-            entry = CheckIn(day, sym, puffs, night, outdoor, sick, missed)
+            entry = CheckIn(day, sym, puffs, night, outdoor, sick, missed,
+                            high_pollen={"Not sure": None, "Yes": True, "No": False}[pollen])
             st.session_state["log"].append(entry)
             if entry.needs_doctor_flag:
                 st.error("Severe symptoms or 5+ puffs: follow your child's asthma action plan and "
